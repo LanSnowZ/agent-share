@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760431396712",
+  "username": "student",
+  "model": "gpt-4o-mini",
+  "shared_memory_enabled": true,
+  "personal_memory_enabled": true,
+  "created_at": "2025-10-14 16:44:32",
+  "updated_at": "2025-10-14 16:44:32",
+  "messages": [
+    {
+      "type": "user",
+      "content": "我们之前聊过关于无感刷新的内容吗",
+      "timestamp": "2025-10-14 16:44:32"
+    },
+    {
+      "type": "assistant",
+      "content": "错误：生成回复时出现问题 - Connection error.",
+      "timestamp": "2025-10-14 16:44:32"
+    }
+  ],
+  "title": "我们之前聊过关于无感刷新的内容吗"
+}

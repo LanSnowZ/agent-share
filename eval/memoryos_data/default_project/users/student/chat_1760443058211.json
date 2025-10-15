@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760443058211",
+  "username": "student",
+  "model": "openai/gpt-5-chat",
+  "shared_memory_enabled": false,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-14 19:58:19",
+  "updated_at": "2025-10-14 19:58:19",
+  "messages": [
+    {
+      "type": "user",
+      "content": "rag怎么学习",
+      "timestamp": "2025-10-14 19:58:19"
+    },
+    {
+      "type": "assistant",
+      "content": "RAG（Retrieval-Augmented Generation，检索增强生成）是一种结合“检索”和“生成”的大型语言模型（LLM）应用技术，它能在回答问题或生成内容时，从外部知识库中检索相关信息，从而提高回答的准确性和实时性。  \n\n下面是学习 RAG 的系统方法：  \n\n---\n\n### 一、理解基本概念\n1. **生成模型（Generator）**：例如 GPT、LLaMA、T5 等，用于生成自然语言答案。  \n2. **检索模块（Retriever）**：用于从外部知识源（文档库、数据库等）中找到与用户问题最相关的信息，常用技术包括：\n   - 向量检索（Vector Search）；\n   - 嵌入模型（Embedding Models），如 text-embedding-ada-002；\n   - 向量数据库，如 FAISS、Milvus、Pinecone、Chroma 等。\n3. **融合机制**：将检索到的内容与原问题拼接后输入生成模型，让模型在已有知识基础上生成回答。\n\n---\n\n### 二、学习步骤\n1. **掌握基础知识**\n   - 学习自然语言处理（NLP）基础，如词嵌入、Transformer 架构。\n   - 了解大型语言模型的原理和使用方法。\n\n2. **学习检索技术**\n   - 熟悉文本向量化（embedding）。\n   - 学会使用向量数据库（例如使用 FAISS 构建检索系统）。\n\n3. **构建一个简单的 RAG 系统**\n   - 选择一个开源模型（如 Hugging Face 的 `langchain`、`llama-index`、`haystack`）。\n   - 建立知识库（文档 → 分句 → 提取 embedding → 存入向量库）。\n   - 编写代码实现“用户输入 → 检索相关文档 → 合成输入 → 模型生成回答”的流程。\n\n4. **优化与进阶**\n   - 学习 **检索增强策略**（如重排序、上下文裁剪）。\n   - 研究 **Prompt 设计** 和 **上下文长度优化**。\n   - 尝试基于特定领域（如企业内部知识、科研文献）构建定制化 RAG 系统。\n\n---\n\n### 三、推荐学习资源\n- **官方与开源项目文档**\n  - [LangChain 官方文档](https://python.langchain.com/)\n  - [LlamaIndex 文档](https://docs.llamaindex.ai/)\n  - [Haystack Framework](https://haystack.deepset.ai/)\n- **视频课程与博客**\n  - YouTube/Bilibili 上有许多 “RAG 实战教程”\n  - Hugging Face 博客的检索增强相关文章\n- **论文阅读**\n  - 原始论文：*Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks*（Lewis et al., 2020）\n\n---\n\n### 总结\n学习 RAG 的关键是理解：**“检索模块 + 生成模型 + 融合机制”** 三者的配合，通过实践构建和调优，你可以掌握如何让大模型充分利用外部知识，更准确、更可靠地回答问题。  \n\n是否希望我为你推荐一个简单的入门 RAG 实战教程（Python + LangChain 实现）？",
+      "timestamp": "2025-10-14 19:58:19"
+    }
+  ],
+  "title": "rag怎么学习"
+}

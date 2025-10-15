@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>记忆仪表盘 - Memory OS</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .dashboard-container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .dashboard-header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 24px 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left h1 {
+      font-size: 28px;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+
+    .header-left p {
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .back-btn {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .back-btn:hover {
+      background: #5a67d8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .memory-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .memory-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+      transition: all 0.3s;
+    }
+
+    .memory-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 48px rgba(31, 38, 135, 0.25);
+    }
+
+    .memory-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .memory-card-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .memory-card-title h2 {
+      font-size: 22px;
+      color: #1f2937;
+    }
+
+    .memory-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .icon-short {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .icon-mid {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+
+    .icon-long {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .icon-shared {
+      background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+
+    .memory-count {
+      background: #f3f4f6;
+      color: #374151;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .memory-content {
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .memory-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .memory-content::-webkit-scrollbar-track {
+      background: #f3f4f6;
+      border-radius: 3px;
+    }
+
+    .memory-content::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 3px;
+    }
+
+    .memory-content::-webkit-scrollbar-thumb:hover {
+      background: #9ca3af;
+    }
+
+    .memory-item {
+      background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    .memory-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+
+    .memory-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .memory-item-time {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .memory-item-badge {
+      font-size: 11px;
+      color: #667eea;
+      background: #eef2ff;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .memory-item-content {
+      line-height: 1.6;
+    }
+
+    .memory-item-label {
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .memory-item-text {
+      color: #4b5563;
+      font-size: 14px;
+      margin-bottom: 8px;
+      padding-left: 12px;
+      border-left: 3px solid #e5e7eb;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #9ca3af;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .loading-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #667eea;
+    }
+
+    .spinner {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .session-item {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 2px 8px rgba(31, 38, 135, 0.08);
+    }
+
+    .session-header {
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .session-title {
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    .session-meta {
+      font-size: 12px;
+      color: #6b7280;
+      display: flex;
+      gap: 12px;
+    }
+
+    .session-summary {
+      margin-bottom: 12px;
+    }
+
+    .session-summary-label {
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .session-summary-text {
+      color: #4b5563;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .session-keywords {
+      margin-bottom: 12px;
+    }
+
+    .keyword-tag {
+      display: inline-block;
+      background: #eef2ff;
+      color: #667eea;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .session-details {
+      margin-top: 12px;
+    }
+
+    .page-item {
+      background: rgba(255,255,255,0.9);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+
+    .page-content {
+      margin-bottom: 6px;
+    }
+
+    .page-label {
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    .page-text {
+      color: #374151;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .page-meta {
+      color: #888;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .profile-item {
+      background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .profile-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .profile-user {
+      font-weight: 600;
+      color: #667eea;
+      font-size: 15px;
+    }
+
+    .profile-updated {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .profile-content {
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .knowledge-section {
+      margin-top: 20px;
+    }
+
+    .knowledge-header {
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 12px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .knowledge-count {
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .knowledge-items {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .knowledge-item {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 14px;
+      color: #4b5563;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .shared-memory-item {
+      background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 14px;
+      transition: all 0.2s;
+    }
+
+    .shared-memory-item:hover {
+      border-color: #38f9d7;
+      box-shadow: 0 4px 12px rgba(56, 249, 215, 0.15);
+    }
+
+    .shared-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .shared-item-id {
+      font-size: 11px;
+      color: #9ca3af;
+      font-family: 'Courier New', monospace;
+    }
+
+    .shared-item-user {
+      font-size: 12px;
+      color: #667eea;
+      background: #eef2ff;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .shared-item-content {
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    .shared-item-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: #6b7280;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    @media (max-width: 768px) {
+      .memory-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .dashboard-header {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- 头部 -->
+    <div class="dashboard-header">
+      <div class="header-left">
+        <h1>🧠 记忆仪表盘</h1>
+        <p id="username-display">正在加载用户信息...</p>
+      </div>
+      <a href="/" class="back-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        返回聊天
+      </a>
+    </div>
+
+    <!-- 记忆卡片网格 -->
+    <div class="memory-grid">
+      <!-- 短期记忆卡片 -->
+      <div class="memory-card">
+        <div class="memory-card-header">
+          <div class="memory-card-title">
+            <div class="memory-icon icon-short">⚡</div>
+            <h2>短期记忆</h2>
+          </div>
+          <div class="memory-count" id="short-count">0</div>
+        </div>
+        <div class="memory-content" id="short-term-content">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中期记忆卡片 -->
+      <div class="memory-card">
+        <div class="memory-card-header">
+          <div class="memory-card-title">
+            <div class="memory-icon icon-mid">📊</div>
+            <h2>中期记忆</h2>
+          </div>
+          <div class="memory-count" id="mid-count">0</div>
+        </div>
+        <div class="memory-content" id="mid-term-content">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 长期记忆卡片 -->
+      <div class="memory-card">
+        <div class="memory-card-header">
+          <div class="memory-card-title">
+            <div class="memory-icon icon-long">🎯</div>
+            <h2>长期记忆</h2>
+          </div>
+          <div class="memory-count" id="long-count">0</div>
+        </div>
+        <div class="memory-content" id="long-term-content">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 共享记忆卡片 -->
+      <div class="memory-card">
+        <div class="memory-card-header">
+          <div class="memory-card-title">
+            <div class="memory-icon icon-shared">🌐</div>
+            <h2>共享记忆</h2>
+          </div>
+          <div class="memory-count" id="shared-count">0</div>
+        </div>
+        <div class="memory-content" id="shared-memory-content">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUsername = null;
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      currentUsername = getSessionUsername();
+      if (!currentUsername) {
+        // 尝试让用户输入用户名
+        currentUsername = prompt('请输入您的用户名：');
+        if (!currentUsername) {
+          alert('需要用户名才能查看记忆仪表盘，将返回首页');
+          window.location.href = '/';
+          return;
+        }
+        // 保存用户名
+        localStorage.setItem('username', currentUsername);
+      }
+      
+      document.getElementById('username-display').textContent = `用户: ${currentUsername}`;
+      loadAllMemories();
+    });
+
+    // 获取会话用户名
+    function getSessionUsername() {
+      // 1. 优先从 localStorage 获取
+      let username = localStorage.getItem('username');
+      if (username) {
+        console.log('从 localStorage 获取用户名:', username);
+        return username;
+      }
+      
+      // 2. 尝试从 URL 参数获取
+      const urlParams = new URLSearchParams(window.location.search);
+      username = urlParams.get('username');
+      if (username) {
+        console.log('从 URL 参数获取用户名:', username);
+        localStorage.setItem('username', username);
+        return username;
+      }
+      
+      console.log('无法获取用户名');
+      return null;
+    }
+
+    // 加载所有记忆
+    async function loadAllMemories() {
+      await Promise.all([
+        loadShortTermMemory(),
+        loadMidTermMemory(),
+        loadLongTermMemory(),
+        loadSharedMemory()
+      ]);
+    }
+
+    // 加载短期记忆
+    async function loadShortTermMemory() {
+      try {
+        // 尝试从 memoryos_data/{username}/users/{username}/ 路径加载
+        let response = await fetch(`http://127.0.0.1:5002/api/get_memory_file?username=${currentUsername}&file=short_term.json`);
+        
+        // 如果API不存在，回退到直接路径
+        if (!response.ok) {
+          console.log('使用备用路径加载短期记忆');
+          response = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/short_term.json`);
+        }
+        
+        if (response.ok) {
+          const memories = await response.json();
+          displayShortTermMemories(memories);
+        } else {
+          showEmptyState('short-term-content', '暂无短期记忆');
+        }
+      } catch (error) {
+        console.error('加载短期记忆失败:', error);
+        showEmptyState('short-term-content', '加载失败');
+      }
+    }
+
+    // 显示短期记忆
+    function displayShortTermMemories(memories) {
+      const container = document.getElementById('short-term-content');
+      const countEl = document.getElementById('short-count');
+      
+      if (!Array.isArray(memories) || memories.length === 0) {
+        showEmptyState('short-term-content', '暂无短期记忆');
+        return;
+      }
+
+      countEl.textContent = memories.length;
+      container.innerHTML = '';
+      
+      memories.forEach((memory, index) => {
+        const item = document.createElement('div');
+        item.className = 'memory-item';
+        
+        const time = memory.timestamp || '未知时间';
+        const conversationId = memory.conversation_id || '未知会话';
+        const userInput = memory.user_input || '无用户输入';
+        const agentResponse = memory.agent_response || '无AI回复';
+        
+        item.innerHTML = `
+          <div class="memory-item-header">
+            <span class="memory-item-time">${time}</span>
+            <span class="memory-item-badge">${conversationId}</span>
+          </div>
+          <div class="memory-item-content">
+            <div class="memory-item-label">你:</div>
+            <div class="memory-item-text">${userInput}</div>
+            <div class="memory-item-label">AI:</div>
+            <div class="memory-item-text">${agentResponse}</div>
+          </div>
+        `;
+        
+        container.appendChild(item);
+      });
+    }
+
+    // 加载中期记忆
+    async function loadMidTermMemory() {
+      try {
+        // 使用新的API加载
+        let response = await fetch(`http://127.0.0.1:5002/api/get_memory_file?username=${currentUsername}&file=mid_term.json`);
+        
+        // 如果API不存在，回退到直接路径
+        if (!response.ok) {
+          console.log('使用备用路径加载中期记忆');
+          response = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/mid_term.json`);
+        }
+        
+        if (response.ok) {
+          const memories = await response.json();
+          displayMidTermMemories(memories);
+        } else {
+          showEmptyState('mid-term-content', '暂无中期记忆');
+        }
+      } catch (error) {
+        console.error('加载中期记忆失败:', error);
+        showEmptyState('mid-term-content', '加载失败');
+      }
+    }
+
+    // 显示中期记忆
+    function displayMidTermMemories(memories) {
+      const container = document.getElementById('mid-term-content');
+      const countEl = document.getElementById('mid-count');
+      
+      if (!memories || typeof memories !== 'object') {
+        showEmptyState('mid-term-content', '暂无中期记忆');
+        return;
+      }
+
+      const sessions = memories.sessions || {};
+      const sessionKeys = Object.keys(sessions);
+      
+      if (sessionKeys.length === 0) {
+        showEmptyState('mid-term-content', '暂无中期记忆');
+        return;
+      }
+
+      countEl.textContent = sessionKeys.length;
+      container.innerHTML = '';
+      
+      sessionKeys.forEach(sid => {
+        const session = sessions[sid] || {};
+        const item = document.createElement('div');
+        item.className = 'session-item';
+        
+        const sessionId = session.id || sid;
+        const summary = session.summary || '暂无摘要';
+        const keywords = session.summary_keywords || [];
+        const details = session.details || [];
+        
+        let detailsHtml = '';
+        if (details.length > 0) {
+          detailsHtml = '<div class="session-details"><div class="session-summary-label">对话详情:</div>';
+          details.forEach(page => {
+            detailsHtml += `
+              <div class="page-item">
+                <div class="page-content">
+                  <div class="page-label">你:</div>
+                  <div class="page-text">${page.user_input || ''}</div>
+                </div>
+                <div class="page-content">
+                  <div class="page-label">AI:</div>
+                  <div class="page-text">${page.agent_response || ''}</div>
+                </div>
+                <div class="page-meta">
+                  ${page.timestamp || ''} ${page.meta_info ? '• ' + page.meta_info : ''}
+                  ${page.page_keywords && page.page_keywords.length > 0 ? '<br>关键词: ' + page.page_keywords.join('、') : ''}
+                </div>
+              </div>
+            `;
+          });
+          detailsHtml += '</div>';
+        }
+        
+        item.innerHTML = `
+          <div class="session-header">
+            <div class="session-title">会话 ${sessionId}</div>
+            <div class="session-meta">
+              <span>对话数: ${details.length}</span>
+            </div>
+          </div>
+          <div class="session-summary">
+            <div class="session-summary-label">摘要:</div>
+            <div class="session-summary-text">${summary}</div>
+          </div>
+          ${keywords.length > 0 ? `
+            <div class="session-keywords">
+              <div class="session-summary-label">关键词:</div>
+              ${keywords.map(kw => `<span class="keyword-tag">${kw}</span>`).join('')}
+            </div>
+          ` : ''}
+          ${detailsHtml}
+        `;
+        
+        container.appendChild(item);
+      });
+    }
+
+    // 加载长期记忆
+    async function loadLongTermMemory() {
+      try {
+        // 使用新的API加载
+        let response = await fetch(`http://127.0.0.1:5002/api/get_memory_file?username=${currentUsername}&file=long_term_user.json`);
+        
+        // 如果API不存在，回退到直接路径
+        if (!response.ok) {
+          console.log('使用备用路径加载长期记忆');
+          response = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/long_term_user.json`);
+        }
+        
+        if (response.ok) {
+          const memories = await response.json();
+          console.log('长期记忆数据:', memories);
+          console.log('user_profiles:', memories.user_profiles);
+          console.log('knowledge_base:', memories.knowledge_base);
+          console.log('assistant_knowledge:', memories.assistant_knowledge);
+          displayLongTermMemories(memories);
+        } else {
+          console.log('长期记忆响应状态:', response.status);
+          showEmptyState('long-term-content', '暂无长期记忆');
+        }
+      } catch (error) {
+        console.error('加载长期记忆失败:', error);
+        console.error('错误堆栈:', error.stack);
+        showEmptyState('long-term-content', `加载失败: ${error.message}`);
+      }
+    }
+
+    // 显示长期记忆
+    function displayLongTermMemories(memories) {
+      const container = document.getElementById('long-term-content');
+      const countEl = document.getElementById('long-count');
+      
+      // 先定义变量在外部作用域
+      let userProfiles = {};
+      let knowledgeBase = [];
+      let assistantKnowledge = [];
+      
+      try {
+        if (!memories || typeof memories !== 'object') {
+          console.log('长期记忆数据格式错误');
+          showEmptyState('long-term-content', '暂无长期记忆');
+          return;
+        }
+
+        userProfiles = memories.user_profiles || {};
+        knowledgeBase = memories.knowledge_base || [];
+        assistantKnowledge = memories.assistant_knowledge || [];
+        
+        console.log('处理长期记忆 - userProfiles数量:', Object.keys(userProfiles).length);
+        console.log('处理长期记忆 - knowledgeBase数量:', knowledgeBase.length);
+        console.log('处理长期记忆 - assistantKnowledge数量:', assistantKnowledge.length);
+        
+        const totalCount = Object.keys(userProfiles).length + knowledgeBase.length + assistantKnowledge.length;
+        
+        if (totalCount === 0) {
+          showEmptyState('long-term-content', '暂无长期记忆');
+          return;
+        }
+
+        countEl.textContent = totalCount;
+        container.innerHTML = '';
+      } catch (error) {
+        console.error('显示长期记忆时出错:', error);
+        showEmptyState('long-term-content', `显示失败: ${error.message}`);
+        return;
+      }
+      
+      // 显示用户画像
+      try {
+        Object.keys(userProfiles).forEach(profileKey => {
+          const profile = userProfiles[profileKey] || {};
+          const item = document.createElement('div');
+          item.className = 'profile-item';
+          
+          const data = profile.data || '暂无数据';
+          const lastUpdated = profile.last_updated || '未知时间';
+          const formattedData = data.replace(/。/g, '。<br>');
+          
+          item.innerHTML = `
+            <div class="profile-header">
+              <span class="profile-user">用户画像: ${profileKey}</span>
+              <span class="profile-updated">${lastUpdated}</span>
+            </div>
+            <div class="profile-content">${formattedData}</div>
+          `;
+          
+          container.appendChild(item);
+        });
+      } catch (error) {
+        console.error('显示用户画像失败:', error);
+      }
+      
+      // 显示知识库
+      try {
+        if (knowledgeBase.length > 0) {
+          const knowledgeSection = document.createElement('div');
+          knowledgeSection.className = 'knowledge-section';
+          
+          knowledgeSection.innerHTML = `
+            <div class="knowledge-header">
+              📚 个人知识库
+              <span class="knowledge-count">${knowledgeBase.length} 条</span>
+            </div>
+            <div class="knowledge-items">
+              ${knowledgeBase.map(item => {
+                // 处理对象类型的知识项
+                const knowledgeText = typeof item === 'object' ? (item.knowledge || JSON.stringify(item)) : item;
+                return `<div class="knowledge-item">${knowledgeText.replace(/。/g, '。<br>')}</div>`;
+              }).join('')}
+            </div>
+          `;
+          
+          container.appendChild(knowledgeSection);
+        }
+      } catch (error) {
+        console.error('显示知识库失败:', error);
+      }
+      
+      // 显示助手知识
+      try {
+        if (assistantKnowledge.length > 0) {
+          const assistantSection = document.createElement('div');
+          assistantSection.className = 'knowledge-section';
+          
+          assistantSection.innerHTML = `
+            <div class="knowledge-header">
+              🤖 助手知识
+              <span class="knowledge-count">${assistantKnowledge.length} 条</span>
+            </div>
+            <div class="knowledge-items">
+              ${assistantKnowledge.map(item => {
+                // 处理对象类型的知识项
+                const knowledgeText = typeof item === 'object' ? (item.knowledge || JSON.stringify(item)) : item;
+                return `<div class="knowledge-item">${knowledgeText.replace(/。/g, '。<br>')}</div>`;
+              }).join('')}
+            </div>
+          `;
+          
+          container.appendChild(assistantSection);
+        }
+      } catch (error) {
+        console.error('显示助手知识失败:', error);
+      }
+    }
+
+    // 加载共享记忆
+    async function loadSharedMemory() {
+      try {
+        const response = await fetch('http://127.0.0.1:5002/api/get_shared_memories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: currentUsername,
+            limit: 50
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            displaySharedMemories(data.memories);
+          } else {
+            showEmptyState('shared-memory-content', '加载失败');
+          }
+        } else {
+          showEmptyState('shared-memory-content', '暂无共享记忆');
+        }
+      } catch (error) {
+        console.error('加载共享记忆失败:', error);
+        showEmptyState('shared-memory-content', '加载失败');
+      }
+    }
+
+    // 显示共享记忆
+    function displaySharedMemories(memories) {
+      const container = document.getElementById('shared-memory-content');
+      const countEl = document.getElementById('shared-count');
+      
+      if (!Array.isArray(memories) || memories.length === 0) {
+        showEmptyState('shared-memory-content', '暂无共享记忆');
+        return;
+      }
+
+      countEl.textContent = memories.length;
+      container.innerHTML = '';
+      
+      memories.forEach(memory => {
+        const item = document.createElement('div');
+        item.className = 'shared-memory-item';
+        
+        const id = memory.id || '未知ID';
+        const userId = memory.user_id || '未知用户';
+        const content = memory.content || '无内容';
+        const timestamp = memory.timestamp || '未知时间';
+        const source = memory.source || '未知来源';
+        
+        item.innerHTML = `
+          <div class="shared-item-header">
+            <span class="shared-item-id">${id.substring(0, 8)}...</span>
+            <span class="shared-item-user">${userId}</span>
+          </div>
+          <div class="shared-item-content">${content}</div>
+          <div class="shared-item-meta">
+            <div class="meta-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              ${timestamp}
+            </div>
+            <div class="meta-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              ${source}
+            </div>
+          </div>
+        `;
+        
+        container.appendChild(item);
+      });
+    }
+
+    // 显示空状态
+    function showEmptyState(containerId, message) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p>${message}</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
+

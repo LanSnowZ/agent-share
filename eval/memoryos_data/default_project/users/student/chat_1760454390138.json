@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760454390138",
+  "username": "student",
+  "model": "openai/gpt-5-chat",
+  "shared_memory_enabled": false,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-14 23:07:13",
+  "updated_at": "2025-10-14 23:07:13",
+  "messages": [
+    {
+      "type": "user",
+      "content": "rag怎么学习",
+      "timestamp": "2025-10-14 23:07:13"
+    },
+    {
+      "type": "assistant",
+      "content": "RAG（Retrieval-Augmented Generation，检索增强生成）是一种结合了**信息检索**和**大语言模型生成**的技术，用于提升模型回答问题的准确性与实时性。学习 RAG 通常需要理解它的原理、应用场景和实现步骤。以下是系统的学习路线：\n\n---\n\n### 一、理解基础原理\n1. **基本思想**：  \n   RAG 将外部知识库中的相关文档检索出来（Retrieval），再将这些内容和用户问题一起输入到生成模型（Generation）中，生成更有依据、更准确的回答。\n2. **关键组件**：\n   - **Retriever（检索器）**：比如基于向量数据库（FAISS、Milvus、Chroma 等）的语义检索模块。\n   - **Generator（生成器）**：通常是大语言模型（如 GPT、LLaMA、T5 等）。\n\n---\n\n### 二、学习步骤与路径\n\n1. **了解检索技术**\n   - 学习词向量、句向量（如 BERT、Sentence-BERT）。\n   - 理解相似度计算（余弦相似度等）和向量数据库的基本使用。\n   - 实操项目：用 FAISS 或 Chroma 创建文档索引，测试语义搜索。\n\n2. **掌握大语言模型使用**\n   - 理解 LLM 的输入输出机制与 Prompt 设计。\n   - 学习如何将检索到的上下文拼接到 Prompt 中。\n\n3. **组合实现 RAG 系统**\n   - 使用开源框架（推荐）：\n     - **LangChain**：可以快速搭建 RAG 流程（文档加载 → 向量化 → 检索 → 生成）。\n     - **LlamaIndex (GPT Index)**：适合知识库整合与查询。\n   - 项目示例：构建一个“企业内部知识问答助手”。\n\n4. **深入学习与优化**\n   - 学习检索排序（re-ranking）技巧，提高结果相关性。\n   - 尝试缓存机制和上下文压缩，优化性能。\n   - 了解高级方法：例如 RAG-Fusion、RAG Multi-hop、多文档整合等。\n\n---\n\n### 三、推荐学习资源\n- **文档/教程**：\n  - LangChain 官方文档：[https://python.langchain.com](https://python.langchain.com)\n  - LlamaIndex 官方网站：[https://www.llamaindex.ai](https://www.llamaindex.ai)\n- **课程/视频**：\n  - YouTube / B 站搜索 “RAG LangChain 教程”\n  - Coursera 或 HuggingFace 课程（如 “Building LLM Applications with RAG”）\n- **代码实践**：\n  - Hugging Face 的 RAG 示例项目：[https://huggingface.co/docs/transformers/model_doc/rag](https://huggingface.co/docs/transformers/model_doc/rag)\n\n---\n\n### 四、建议学习路径总结\n> 向量检索基础 → 向量数据库实操 → LLM调用 → LangChain 实战 → 构建完整 RAG 应用\n\n通过一两个实际项目（如知识问答机器人），可以迅速掌握 RAG 的核心思想和技术落地方法。\n\n---\n\n是否希望我为你推荐一套**从零开始搭建 RAG 系统的实践步骤和代码示例**？",
+      "timestamp": "2025-10-14 23:07:13"
+    }
+  ],
+  "title": "rag怎么学习"
+}

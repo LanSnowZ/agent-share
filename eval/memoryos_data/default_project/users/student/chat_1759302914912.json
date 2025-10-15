@@ -1,0 +1,22 @@
+{
+  "id": "chat_1759302914912",
+  "username": "student",
+  "model": "gpt-4o-mini",
+  "shared_memory_enabled": true,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-01 15:15:14",
+  "updated_at": "2025-10-01 15:15:14",
+  "messages": [
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-01 15:15:14"
+    },
+    {
+      "type": "assistant",
+      "content": "你好！很高兴见到你！如果你对机器学习或大语言模型（LLM）有任何问题，或者想聊聊如何开始做一些小项目，随时问我哦！我可以提供一些简单的步骤指南或者示例，帮助你更好地理解。你最近在学习哪些内容？",
+      "timestamp": "2025-10-01 15:15:14"
+    }
+  ],
+  "title": "你好"
+}

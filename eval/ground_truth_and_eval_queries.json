@@ -1,0 +1,485 @@
+[
+  {
+    "query_id": "rag-002",
+    "query_text": "What are the main components of a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048042767"
+  },
+  {
+    "query_id": "rag-001",
+    "query_text": "What is RAG? Why is it important?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048046004"
+  },
+  {
+    "query_id": "rag-002",
+    "query_text": "What are the main components of a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048051735"
+  },
+  {
+    "query_id": "rag-001",
+    "query_text": "What is RAG? Why is it important?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048046004"
+  },
+  {
+    "query_id": "rag-003",
+    "query_text": "How do you choose a good embedding model for a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048129277"
+  },
+  {
+    "query_id": "rag-004",
+    "query_text": "How does the text chunking strategy affect RAG performance?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048159995"
+  },
+  {
+    "query_id": "rag-004",
+    "query_text": "How does the text chunking strategy affect RAG performance?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048170907"
+  },
+  {
+    "query_id": "rag-003",
+    "query_text": "How do you choose a good embedding model for a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048129277"
+  },
+  {
+    "query_id": "rag-005",
+    "query_text": "What is the difference between using RAG and fine-tuning a model?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048191892"
+  },
+  {
+    "query_id": "rag-006",
+    "query_text": "What are some common problems when building a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048254751"
+  },
+  {
+    "query_id": "rag-005",
+    "query_text": "What is the difference between using RAG and fine-tuning a model?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048191892"
+  },
+  {
+    "query_id": "rag-005",
+    "query_text": "What is the difference between using RAG and fine-tuning a model?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048191892"
+  },
+  {
+    "query_id": "rag-008",
+    "query_text": "What is a vector database? Why does RAG need it?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048335218"
+  },
+  {
+    "query_id": "rag-006",
+    "query_text": "What are some common problems when building a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048254751"
+  },
+  {
+    "query_id": "rag-007",
+    "query_text": "Explain the business value of RAG in applications like customer service.",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759048358208"
+  },
+  {
+    "query_id": "rag-008",
+    "query_text": "What is a vector database? Why does RAG need it?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048378370"
+  },
+  {
+    "query_id": "rag-009",
+    "query_text": "What is the approximate cost of running a RAG system in production?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759048425169"
+  },
+  {
+    "query_id": "rag-010",
+    "query_text": "How do you evaluate the quality of a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048439908"
+  },
+  {
+    "query_id": "rag-010",
+    "query_text": "How do you evaluate the quality of a RAG system?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048443388"
+  },
+  {
+    "query_id": "rag-011",
+    "query_text": "What benefits can RAG bring to a company with a large internal knowledge base?",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759048456632"
+  },
+  {
+    "query_id": "rag-012",
+    "query_text": "Explain RAG to a beginner using a simple analogy.",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048482149"
+  },
+  {
+    "query_id": "rag-012",
+    "query_text": "Explain RAG to a beginner using a simple analogy.",
+    "topic": "Retrieval-Augmented Generation (RAG)",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048484819"
+  },
+  {
+    "query_id": "ml-001",
+    "query_text": "Explain the difference between supervised and unsupervised learning with examples.",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048507127"
+  },
+  {
+    "query_id": "ml-002",
+    "query_text": "What is overfitting? How can you prevent a model from overfitting?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048549147"
+  },
+  {
+    "query_id": "ml-002",
+    "query_text": "What is overfitting? How can you prevent a model from overfitting?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048550649"
+  },
+  {
+    "query_id": "ml-002",
+    "query_text": "What is overfitting? How can you prevent a model from overfitting?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048585622"
+  },
+  {
+    "query_id": "ml-001",
+    "query_text": "Explain the difference between supervised and unsupervised learning with examples.",
+    "topic": "Classic Machine Learning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048507127"
+  },
+  {
+    "query_id": "ml-003",
+    "query_text": "How does a decision tree model work?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048625768"
+  },
+  {
+    "query_id": "ml-004",
+    "query_text": "What's the difference between Logistic Regression and Support Vector Machines (SVMs)? When should you use one over the other?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048681528"
+  },
+  {
+    "query_id": "ml-003",
+    "query_text": "How does a decision tree model work?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048625768"
+  },
+  {
+    "query_id": "ml-005",
+    "query_text": "What is feature engineering? Give a few common techniques.",
+    "topic": "Classic Machine Learning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048711464"
+  },
+  {
+    "query_id": "ml-004",
+    "query_text": "What's the difference between Logistic Regression and Support Vector Machines (SVMs)? When should you use one over the other?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048681528"
+  },
+  {
+    "query_id": "ml-006",
+    "query_text": "How do you evaluate a classification model? What are precision and recall?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048748126"
+  },
+  {
+    "query_id": "ml-005",
+    "query_text": "What is feature engineering? Give a few common techniques.",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048763165"
+  },
+  {
+    "query_id": "ml-007",
+    "query_text": "Explain the concept of the Bias-Variance Tradeoff.",
+    "topic": "Classic Machine Learning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048800743"
+  },
+  {
+    "query_id": "ml-006",
+    "query_text": "How do you evaluate a classification model? What are precision and recall?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048800883"
+  },
+  {
+    "query_id": "ml-007",
+    "query_text": "Explain the concept of the Bias-Variance Tradeoff.",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048828501"
+  },
+  {
+    "query_id": "ml-008",
+    "query_text": "In business decisions, which is more important: a model's accuracy or its interpretability?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759048839226"
+  },
+  {
+    "query_id": "ml-009",
+    "query_text": "What is the K-Nearest Neighbors (KNN) algorithm?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048866476"
+  },
+  {
+    "query_id": "ml-009",
+    "query_text": "What is the K-Nearest Neighbors (KNN) algorithm?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759048873583"
+  },
+  {
+    "query_id": "ml-010",
+    "query_text": "What is the difference between Gradient Boosting and Random Forest?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759048921556"
+  },
+  {
+    "query_id": "ml-011",
+    "query_text": "What is cross-validation and why is it important?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759048940154"
+  },
+  {
+    "query_id": "ml-010",
+    "query_text": "What is the difference between Gradient Boosting and Random Forest?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048921556"
+  },
+  {
+    "query_id": "ml-011",
+    "query_text": "What is cross-validation and why is it important?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759048940154"
+  },
+  {
+    "query_id": "ml-012",
+    "query_text": "What is the most critical step when starting a new machine learning project?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759049024946"
+  },
+  {
+    "query_id": "ml-012",
+    "query_text": "What is the most critical step when starting a new machine learning project?",
+    "topic": "Classic Machine Learning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759049027213"
+  },
+  {
+    "query_id": "ft-001",
+    "query_text": "What does it mean to fine-tune a large language model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759049053270"
+  },
+  {
+    "query_id": "ft-001",
+    "query_text": "What does it mean to fine-tune a large language model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759049055384"
+  },
+  {
+    "query_id": "ft-002",
+    "query_text": "What is LoRA and why is it a popular fine-tuning method?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759049101213"
+  },
+  {
+    "query_id": "ft-003",
+    "query_text": "How do you prepare a dataset for supervised fine-tuning (SFT)?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759049128633"
+  },
+  {
+    "query_id": "ft-002",
+    "query_text": "What is LoRA and why is it a popular fine-tuning method?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759049101213"
+  },
+  {
+    "query_id": "ft-003",
+    "query_text": "How do you prepare a dataset for supervised fine-tuning (SFT)?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759049152856"
+  },
+  {
+    "query_id": "ft-004",
+    "query_text": "What is catastrophic forgetting and how can you avoid it during fine-tuning?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759049170859"
+  },
+  {
+    "query_id": "ft-004",
+    "query_text": "What is catastrophic forgetting and how can you avoid it during fine-tuning?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759049201298"
+  },
+  {
+    "query_id": "ft-005",
+    "query_text": "What are the business trade-offs between using a foundation model's API and fine-tuning your own model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759049215121"
+  },
+  {
+    "query_id": "ft-006",
+    "query_text": "What kind of hardware do you need to fine-tune a 7-billion parameter model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759049219320"
+  },
+  {
+    "query_id": "ft-007",
+    "query_text": "How do you evaluate a fine-tuned LLM to see if it's better than the base model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "algorithm_engineer",
+    "generated_memory_id": "mem_1759049274542"
+  },
+  {
+    "query_id": "ft-008",
+    "query_text": "What are the risks of fine-tuning on low-quality data?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759049294568"
+  },
+  {
+    "query_id": "ft-006",
+    "query_text": "What kind of hardware do you need to fine-tune a 7-billion parameter model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759049219320"
+  },
+  {
+    "query_id": "ft-007",
+    "query_text": "How do you evaluate a fine-tuned LLM to see if it's better than the base model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759049128633"
+  },
+  {
+    "query_id": "ft-009",
+    "query_text": "What is the difference between full fine-tuning and parameter-efficient fine-tuning (PEFT)?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759049346901"
+  },
+  {
+    "query_id": "ft-008",
+    "query_text": "What are the risks of fine-tuning on low-quality data?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759049294568"
+  },
+  {
+    "query_id": "ft-009",
+    "query_text": "What is the difference between full fine-tuning and parameter-efficient fine-tuning (PEFT)?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759049346901"
+  },
+  {
+    "query_id": "ft-010",
+    "query_text": "Explain what RLHF (Reinforcement Learning from Human Feedback) is.",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759049428412"
+  },
+  {
+    "query_id": "ft-009",
+    "query_text": "What is the difference between full fine-tuning and parameter-efficient fine-tuning (PEFT)?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student2",
+    "generated_memory_id": "mem_1759049346901"
+  },
+  {
+    "query_id": "ft-011",
+    "query_text": "How much time and budget are required to fine-tune a model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "business_stakeholder",
+    "generated_memory_id": "mem_1759049468274"
+  },
+  {
+    "query_id": "ft-010",
+    "query_text": "Explain what RLHF (Reinforcement Learning from Human Feedback) is.",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759049428412"
+  },
+  {
+    "query_id": "ft-012",
+    "query_text": "What are the most common mistakes beginners make when fine-tuning a model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "student",
+    "generated_memory_id": "mem_1759049500180"
+  },
+  {
+    "query_id": "ft-012",
+    "query_text": "What are the most common mistakes beginners make when fine-tuning a model?",
+    "topic": "Large Language Model Fine-tuning",
+    "persona_id": "teacher",
+    "generated_memory_id": "mem_1759049500180"
+  }
+]

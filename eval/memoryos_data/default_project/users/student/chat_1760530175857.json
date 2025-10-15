@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760530175857",
+  "username": "student",
+  "model": "gpt-4o-mini",
+  "shared_memory_enabled": true,
+  "personal_memory_enabled": true,
+  "created_at": "2025-10-15 20:09:46",
+  "updated_at": "2025-10-15 20:09:46",
+  "messages": [
+    {
+      "type": "user",
+      "content": "123",
+      "timestamp": "2025-10-15 20:09:46"
+    },
+    {
+      "type": "assistant",
+      "content": "It looks like you just sent \"123,\" which doesn't give me much to go on! If you have a specific question or topic you want to dive into—especially regarding RAG or anything else in machine learning—just let me know. I'm here to help clarify things or guide you through any concepts you're curious about. Feel free to ask anything!",
+      "timestamp": "2025-10-15 20:09:46"
+    }
+  ],
+  "title": "123"
+}

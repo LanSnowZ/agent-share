@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760448075837",
+  "username": "student",
+  "model": "openai/gpt-5-chat",
+  "shared_memory_enabled": false,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-14 21:21:54",
+  "updated_at": "2025-10-14 21:21:54",
+  "messages": [
+    {
+      "type": "user",
+      "content": "rag怎么学习",
+      "timestamp": "2025-10-14 21:21:54"
+    },
+    {
+      "type": "assistant",
+      "content": "RAG（Retrieval-Augmented Generation，检索增强生成）是一种结合了信息检索与生成式模型的技术，常用于问答系统、知识问答和企业知识库应用等场景。学习 RAG 通常可以分为以下几个步骤：  \n\n---\n\n### 一、理解基本原理  \n1. **核心思想**  \n   RAG 的核心是“先检索，后生成”：  \n   - 先从知识库中检索出与问题最相关的文档（retriever 部分）；  \n   - 再将这些文档与用户问题一同输入到生成模型（generator）中生成答案。  \n\n2. **主要组成部分**  \n   - **Retriever（检索器）**：负责在大规模文档中找到相关内容，可以使用传统的向量检索技术（如 FAISS、Milvus）或现代的嵌入模型（如 sentence-transformers）。  \n   - **Generator（生成器）**：通常是语言模型（如 BERT、T5、Llama、ChatGLM 等），根据检索到的材料生成回答。  \n\n---\n\n### 二、学习路径建议  \n1. **掌握基础 NLP 知识**  \n   熟悉如下内容有助于理解 RAG 工作机制：  \n   - 文本向量化与嵌入（embeddings）  \n   - 语义相似度计算  \n   - Transformer 结构与语言模型的工作原理  \n\n2. **了解向量数据库和检索技术**  \n   - 学会使用 **FAISS、Milvus、Elasticsearch、Pinecone** 等工具。  \n   - 理解相似度搜索、倒排索引、向量量化等概念。  \n\n3. **学习检索增强生成的实践框架**  \n   推荐入门方式：  \n   - 使用 **LangChain** 或 **LlamaIndex**：这两个框架提供了简单的 RAG 搭建流程。  \n   - 了解如何通过 **OpenAI API**、**Hugging Face** 模型或 **本地大模型（如 Qwen、Baichuan）** 构建 RAG 应用。  \n\n4. **动手实践**  \n   - 构建一个小型知识问答系统：  \n     1. 准备一份文档集（如公司内部资料或维基内容）。  \n     2. 用 Embedding 模型将文本片段向量化并存入向量数据库。  \n     3. 前端输入问题，通过检索后调用生成模型生成最终回答。  \n\n5. **进阶探索**  \n   - 学习文档切分策略（chunking）优化  \n   - 探索动态检索、跨域知识融合等高级话题  \n   - 关注 RAG 与长上下文模型（如 GPT-4-turbo、Claude-3）之间的差异与互补  \n\n---\n\n### 三、学习资源推荐  \n- **官方框架文档**：  \n  - [LangChain 文档](https://python.langchain.com/)  \n  - [LlamaIndex 文档](https://docs.llamaindex.ai/)  \n- **实践教程**：  \n  - Hugging Face 的 RAG 教程（RAG pipeline）  \n  - OpenAI、百度或者阿里的大模型生态中的检索增强应用示例  \n- **课程与讲座**：  \n  - Coursera 或 Bilibili 上的 RAG 与 LangChain 教程  \n  - Papers with Code 上查看最新 RAG 相关论文  \n\n---\n\n✅ **总结：**  \n学习 RAG 的关键是 **理解“检索 + 生成”的结合机制**，先打好 NLP 和向量检索基础，再通过 LangChain 等框架实践。多动手、多实验不同的检索策略和生成模型，才能真正掌握 RAG 的精髓。",
+      "timestamp": "2025-10-14 21:21:54"
+    }
+  ],
+  "title": "rag怎么学习"
+}

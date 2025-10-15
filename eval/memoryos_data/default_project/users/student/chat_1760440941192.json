@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760440941192",
+  "username": "student",
+  "model": "doubao-seed-1-6-thinking-250715",
+  "shared_memory_enabled": true,
+  "personal_memory_enabled": true,
+  "created_at": "2025-10-14 19:23:34",
+  "updated_at": "2025-10-14 19:23:34",
+  "messages": [
+    {
+      "type": "user",
+      "content": "rag怎么学习",
+      "timestamp": "2025-10-14 19:23:34"
+    },
+    {
+      "type": "assistant",
+      "content": "To learn **Retrieval-Augmented Generation (RAG)** effectively—given your background as a beginner in ML/LLMs and preference for **structured, practical, and step-by-step guidance**—we’ll break the process into **foundational knowledge → core logic → hands-on implementation** (with code!). This aligns with your goals of building small demos, understanding \"why/how,\" and applying theory to real scenarios.\n\n\n### **1. First: Build the \"Pre-Requisite\" Foundation**\nRAG combines **retrieval** (finding relevant info) and **generation** (LLM answering with that info). To avoid overwhelm, start with these 3 basics:\n\n#### **a. NLP & Transformer Basics**  \nRAG relies on pre-trained language models (e.g., GPT, BERT) and vector embeddings. Focus on:  \n- **What transformers do**: They process text by understanding context (e.g., BERT for \"understanding\" text, GPT for \"generating\" text).  \n- **Free resources**:  \n  - Hugging Face’s [Transformers Course](https://huggingface.co/learn/nlp-course/) (interactive, beginner-friendly).  \n  - Li Hongyi’s [NLP Lectures](https://www.youtube.com/watch?v=8rXD5-xhemo) (clear explanations of transformers).  \n\n#### **b. Vector Databases & Embeddings**  \n- **Embeddings**: Convert text (e.g., a sentence) into numerical vectors that capture \"semantic meaning\" (e.g., \"cat\" and \"kitten\" have similar vectors).  \n  - Free tools: Use `all-MiniLM-L6-v2` (lightweight, open-source) or OpenAI’s `text-embedding-3-small` (free tier available).  \n- **Vector Databases**: Store these vectors and quickly find \"similar\" ones (e.g., matching a user’s question to relevant docs).  \n  - Free options for beginners: **Chroma** (local, no cloud cost) or **FAISS** (Facebook’s open-source library).  \n\n\n### **2. Understand RAG’s Core Logic (Why It Works)**  \nRAG solves a big problem with pure LLMs: **hallucinations** (making up facts). Its magic is **\"Retrieve → Augment → Generate\"**:  \n1. **Retrieve**: When a user asks a question (e.g., \"How does RAG work?\"), search a *knowledge base* (e.g., your PDF docs) for the **most relevant text chunks**.  \n   - Example: Use \"dense retrieval\" (vector similarity) to find chunks about \"RAG’s three steps.\"  \n2. **Augment**: Combine the retrieved chunks with the original question into a **prompt** (e.g., *\"Based on this info: [retrieved chunks]. Answer: How does RAG work?\"*).  \n3. **Generate**: Feed the augmented prompt to an LLM (e.g., GPT-3.5, LLaMA 3) to get a **fact-checked answer** (no hallucinations!).  \n\n\n### **3. Hands-On: Build Your First RAG System (10-Minute Demo)**  \nWe’ll use **LangChain** (a RAG framework) and **Chroma** (local vector database) to create a simple RAG that answers questions about a PDF (e.g., your class notes or a research paper). This is *small, manageable, and aligned with your goal of building demos*.\n\n#### **Step 1: Install Tools**  \n```bash\npip install langchain langchain-openai pypdf chromadb python-dotenv\n```\n- `langchain`: RAG development framework.  \n- `pypdf`: Load PDF files.  \n- `chromadb`: Local vector database (no cloud setup!).  \n\n#### **Step 2: Write Code (Copy-Paste + Customize)**  \nCreate a file `rag_demo.py` and add this code (we’ll explain each part):  \n```python\nfrom langchain.document_loaders import PyPDFLoader\nfrom langchain.text_splitter import RecursiveCharacterTextSplitter\nfrom langchain.embeddings import OpenAIEmbeddings\nfrom langchain.vectorstores import Chroma\nfrom langchain.chains import RetrievalQA\nfrom langchain.chat_models import ChatOpenAI\nfrom dotenv import load_dotenv\n\n# 1. Load your PDF (replace with your file path)\nloader = PyPDFLoader(\"your_file.pdf\")\ndocs = loader.load()\n\n# 2. Split PDF into small, searchable chunks (avoids \"too long text\" issues)\ntext_splitter = RecursiveCharacterTextSplitter(\n    chunk_size=500,  # 500 characters per chunk\n    chunk_over",
+      "timestamp": "2025-10-14 19:23:34"
+    }
+  ],
+  "title": "rag怎么学习"
+}

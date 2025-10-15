@@ -1,0 +1,22 @@
+{
+  "id": "chat_1760442661241",
+  "username": "student",
+  "model": "doubao-seed-1-6-thinking-250715",
+  "shared_memory_enabled": false,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-14 19:52:15",
+  "updated_at": "2025-10-14 19:52:15",
+  "messages": [
+    {
+      "type": "user",
+      "content": "rag怎么学习",
+      "timestamp": "2025-10-14 19:52:15"
+    },
+    {
+      "type": "assistant",
+      "content": "学习**检索增强生成（Retrieval-Augmented Generation, RAG）**需要从**基础准备→核心概念→动手实践→进阶优化**逐步推进，以下是结构化的学习路径和关键要点：\n\n\n### **一、基础准备：先掌握前置技能**\nRAG是**NLP+LLM+向量技术**的综合应用，需先补全以下基础：\n1. **Python编程**：  \n   熟练掌握Python语法（函数、类、库使用），推荐通过`Codecademy`、`freeCodeCamp`或《Python编程从入门到实践》学习。\n2. **NLP与机器学习基础**：  \n   - 理解**词向量、Transformer模型**（必读论文《Attention is All You Need》）；  \n   - 熟悉**LLM基本概念**（如GPT、Llama的工作原理）；  \n   - 可选课程：Coursera《Natural Language Processing Specialization》（DeepLearning.AI）。\n3. **向量数据库基础**：  \n   了解向量的存储与相似性搜索（如余弦相似度），入门工具：`FAISS`（本地轻量）、`ChromaDB`（开源易上手）、`Pinecone`（云原生 scalable）。\n4. **LLM API/开源模型使用**：  \n   - 体验闭源LLM：用`OpenAI API`（GPT-3.5/4）、`Anthropic Claude`调用生成；  \n   - 体验开源LLM：用`Ollama`本地部署Llama 3、Mistral，或用`Hugging Face Transformers`加载模型。\n\n\n### **二、核心概念：吃透RAG的\"三大模块\"**\nRAG的本质是**\"检索外部知识→增强LLM prompt→生成更精准的回答\"**，需重点理解以下组件：\n\n#### 1. **检索（Retrieval）**\n- **核心目标**：从海量数据中快速找到与用户 query 最相关的文档片段。  \n- **关键技术**：  \n  - **嵌入（Embeddings）**：将文本转化为**低维稠密向量**（如`text-embedding-3-small`、`all-mpnet-base-v2`），使相似文本的向量距离更近；  \n  - **向量数据库**：存储嵌入后的向量，支持高效相似性搜索（如ChromaDB、Pinecone）；  \n  - **检索策略**：  \n    - 稠密检索（Dense Retrieval）：用嵌入向量匹配（如`Sentence-BERT`）；  \n    - 稀疏检索（Sparse Retrieval）：用关键词匹配（如BM25，适用于长文本）；  \n    - 混合检索（Hybrid）：结合两者（如`Pinecone Hybrid Search`）提升召回率。\n\n#### 2. **增强（Augmentation）**\n- **核心目标**：将检索到的**相关上下文**与用户 query 拼接成新的prompt，引导LLM基于外部知识生成答案。  \n- **关键技巧**：  \n  -  Prompt 模板设计（例）：  \n    ```\n    请根据以下上下文回答问题，不要编造信息：\n    上下文：{context}\n    问题：{query}\n    答案：\n    ```\n  -  上下文截断：避免超过LLM的`token限制`（如GPT-3.5-turbo的4k/16k token）。\n\n#### 3. **生成（Generation）**\n- **核心目标**：LLM根据增强后的prompt生成答案，需选择合适的模型和**链类型**（Chain Type）：  \n  - **Stuff Chain**：将所有检索到的文档直接塞入prompt（适用于短文本，速度快）；  \n  - **Map-Reduce Chain**：先逐个处理文档生成子答案，再汇总（适用于长文档，耗时但全面）；  \n  - **Refine Chain**：迭代用新文档优化答案（适用于需要逐步完善的场景）；  \n  - **Map-Rerank Chain**：为每个文档的答案打分，选最高分（适用于多文档冲突时）。\n\n\n### **三、动手实践：从最小demo到完整项目**\n**推荐工具栈**（新手友好）：`LangChain`/`LlamaIndex`（RAG框架） + `ChromaDB`（向量库） + `OpenAI GPT-3.5`（LLM） + `SentenceTransformers`（嵌入）。\n\n#### **Step 1：跑通第一个RAG demo（以LangChain为例）**\n以下是**PDF问答系统**的",
+      "timestamp": "2025-10-14 19:52:15"
+    }
+  ],
+  "title": "rag怎么学习"
+}

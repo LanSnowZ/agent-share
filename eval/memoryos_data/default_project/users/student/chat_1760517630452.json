@@ -1,0 +1,32 @@
+{
+  "id": "chat_1760517630452",
+  "username": "student",
+  "model": "gpt-4o-mini",
+  "shared_memory_enabled": true,
+  "personal_memory_enabled": true,
+  "created_at": "2025-10-15 16:40:48",
+  "updated_at": "2025-10-15 16:44:55",
+  "messages": [
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-15 16:40:48"
+    },
+    {
+      "type": "assistant",
+      "content": "你好！很高兴见到你！如果你有关于RAG（检索增强生成）或其他机器学习相关的具体问题，随时问我哦！我可以提供一些小示例或者分步骤的指南，帮助你更好地理解。如果你想讨论某个特定的主题或有其他问题，请告诉我！",
+      "timestamp": "2025-10-15 16:40:48"
+    },
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-15 16:44:55"
+    },
+    {
+      "type": "assistant",
+      "content": "你好！很高兴看到你再次来问问题。你对RAG（检索增强生成）或者其他机器学习相关的主题还有什么具体想了解的呢？如果你想要小示例，或者需要分步骤的指南来帮助你理解某个概念，随时告诉我！我在这里帮助你更好地学习和实践！",
+      "timestamp": "2025-10-15 16:44:55"
+    }
+  ],
+  "title": "你好"
+}
