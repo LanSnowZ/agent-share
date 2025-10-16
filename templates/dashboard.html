@@ -15,62 +15,231 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
-      padding: 20px;
+      margin: 0;
+      padding: 0;
     }
 
     .dashboard-container {
-      max-width: 1400px;
-      margin: 0 auto;
+      display: flex;
+      min-height: 100vh;
     }
 
-    .dashboard-header {
+    /* 左侧导航栏 */
+    .sidebar {
+      width: 280px;
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(10px);
-      border-radius: 16px;
-      padding: 24px 32px;
+      border-right: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 24px 0;
+      box-shadow: 2px 0 20px rgba(31, 38, 135, 0.1);
+    }
+
+    .sidebar-header {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid #e5e7eb;
       margin-bottom: 24px;
-      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
-    .header-left h1 {
-      font-size: 28px;
+    .sidebar-header h2 {
+      font-size: 20px;
       color: #1f2937;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
 
-    .header-left p {
+    .sidebar-header p {
       font-size: 14px;
       color: #6b7280;
     }
 
-    .back-btn {
-      padding: 10px 20px;
+    .nav-menu {
+      padding: 0 16px;
+    }
+
+    .nav-item {
+      margin-bottom: 8px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      color: #4b5563;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea;
+    }
+
+    .nav-link.active {
       background: #667eea;
       color: white;
-      border: none;
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sub-menu {
+      margin-left: 24px;
+      margin-top: 8px;
+    }
+
+    .sub-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      color: #6b7280;
+      text-decoration: none;
+      border-radius: 6px;
+      transition: all 0.2s;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .sub-link:hover {
+      background: rgba(102, 126, 234, 0.08);
+      color: #667eea;
+    }
+
+    .sub-link.active {
+      background: rgba(102, 126, 234, 0.15);
+      color: #667eea;
+      font-weight: 500;
+    }
+
+    .sub-icon {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    /* 主内容区域 */
+    .main-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .content-header {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* 记忆section控制 */
+    .memory-section {
+      display: none;
+    }
+
+    .memory-section.active {
+      display: block;
+    }
+
+    /* 记忆卡片选择控制 */
+    .memory-card {
+      display: none;
+      width: 100%;
+    }
+
+    .memory-card.active {
+      display: block;
+    }
+
+    /* 确保sidebar占满高度 */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .nav-menu {
+      flex: 1;
+    }
+
+    /* 个人记忆选择下拉框 */
+    .memory-selector {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+    }
+
+    .memory-selector-label {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .memory-selector select {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
       border-radius: 8px;
+      background: white;
+      font-size: 14px;
+      color: #374151;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .memory-selector select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .memory-selector select:hover {
+      border-color: #9ca3af;
+    }
+
+    /* 返回聊天按钮 - 右上角悬浮 */
+    .back-btn {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      padding: 12px 24px;
+      background: rgba(102, 126, 234, 0.95);
+      backdrop-filter: blur(10px);
+      color: white;
+      border: none;
+      border-radius: 10px;
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s;
       display: flex;
       align-items: center;
       gap: 8px;
       text-decoration: none;
+      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+      z-index: 1000;
     }
 
     .back-btn:hover {
-      background: #5a67d8;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      background: rgba(90, 103, 216, 0.95);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
     }
 
     .memory-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+      grid-template-columns: 1fr;
       gap: 24px;
       margin-bottom: 24px;
     }
@@ -488,97 +657,133 @@
       .memory-grid {
         grid-template-columns: 1fr;
       }
-
-      .dashboard-header {
-        flex-direction: column;
-        gap: 16px;
-        text-align: center;
-      }
     }
   </style>
 </head>
 <body>
+  <!-- 返回聊天按钮 - 右上角悬浮 -->
+  <a href="/" class="back-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+      <path d="M19 12H5M12 19l-7-7 7-7"/>
+    </svg>
+    返回聊天
+  </a>
+
   <div class="dashboard-container">
-    <!-- 头部 -->
-    <div class="dashboard-header">
-      <div class="header-left">
-        <h1>🧠 记忆仪表盘</h1>
+    <!-- 左侧导航栏 -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>🧠 记忆仪表盘</h2>
         <p id="username-display">正在加载用户信息...</p>
       </div>
-      <a href="/" class="back-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        返回聊天
-      </a>
+      
+      <nav class="nav-menu">
+        <div class="nav-item">
+          <a href="#" class="nav-link" data-section="personal-memory">
+            <div class="nav-icon">👤</div>
+            个人记忆
+          </a>
+        </div>
+        
+        <div class="nav-item">
+          <a href="#" class="nav-link" data-section="shared-memory">
+            <div class="nav-icon">🌐</div>
+            共享记忆
+          </a>
+        </div>
+      </nav>
     </div>
 
-    <!-- 记忆卡片网格 -->
-    <div class="memory-grid">
-      <!-- 短期记忆卡片 -->
-      <div class="memory-card">
-        <div class="memory-card-header">
-          <div class="memory-card-title">
-            <div class="memory-icon icon-short">⚡</div>
-            <h2>短期记忆</h2>
-          </div>
-          <div class="memory-count" id="short-count">0</div>
-        </div>
-        <div class="memory-content" id="short-term-content">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>加载中...</p>
-          </div>
-        </div>
-      </div>
+    <!-- 主内容区域 -->
+    <div class="main-content">
+      <div class="content-header">
+        <!-- 记忆内容区域 -->
+        <div class="memory-content-area">
+          <!-- 个人记忆内容 -->
+          <div id="personal-memory-content" class="memory-section active">
+            <!-- 记忆类型选择器 -->
+            <div class="memory-selector">
+              <label class="memory-selector-label">选择记忆类型：</label>
+              <select id="memory-type-selector">
+                <option value="short">⚡ 短期记忆</option>
+                <option value="mid">📊 中期记忆</option>
+                <option value="long">🎯 长期记忆</option>
+              </select>
+            </div>
+            
+            <div class="memory-grid">
+              <!-- 短期记忆卡片 -->
+              <div id="short-term-card" class="memory-card active">
+                <div class="memory-card-header">
+                  <div class="memory-card-title">
+                    <div class="memory-icon icon-short">⚡</div>
+                    <h2>短期记忆</h2>
+                  </div>
+                  <div class="memory-count" id="short-count">0</div>
+                </div>
+                <div class="memory-content" id="short-term-content">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                  </div>
+                </div>
+              </div>
 
-      <!-- 中期记忆卡片 -->
-      <div class="memory-card">
-        <div class="memory-card-header">
-          <div class="memory-card-title">
-            <div class="memory-icon icon-mid">📊</div>
-            <h2>中期记忆</h2>
-          </div>
-          <div class="memory-count" id="mid-count">0</div>
-        </div>
-        <div class="memory-content" id="mid-term-content">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>加载中...</p>
-          </div>
-        </div>
-      </div>
+              <!-- 中期记忆卡片 -->
+              <div id="mid-term-card" class="memory-card">
+                <div class="memory-card-header">
+                  <div class="memory-card-title">
+                    <div class="memory-icon icon-mid">📊</div>
+                    <h2>中期记忆</h2>
+                  </div>
+                  <div class="memory-count" id="mid-count">0</div>
+                </div>
+                <div class="memory-content" id="mid-term-content">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                  </div>
+                </div>
+              </div>
 
-      <!-- 长期记忆卡片 -->
-      <div class="memory-card">
-        <div class="memory-card-header">
-          <div class="memory-card-title">
-            <div class="memory-icon icon-long">🎯</div>
-            <h2>长期记忆</h2>
+              <!-- 长期记忆卡片 -->
+              <div id="long-term-card" class="memory-card">
+                <div class="memory-card-header">
+                  <div class="memory-card-title">
+                    <div class="memory-icon icon-long">🎯</div>
+                    <h2>长期记忆</h2>
+                  </div>
+                  <div class="memory-count" id="long-count">0</div>
+                </div>
+                <div class="memory-content" id="long-term-content">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="memory-count" id="long-count">0</div>
-        </div>
-        <div class="memory-content" id="long-term-content">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>加载中...</p>
-          </div>
-        </div>
-      </div>
 
-      <!-- 共享记忆卡片 -->
-      <div class="memory-card">
-        <div class="memory-card-header">
-          <div class="memory-card-title">
-            <div class="memory-icon icon-shared">🌐</div>
-            <h2>共享记忆</h2>
-          </div>
-          <div class="memory-count" id="shared-count">0</div>
-        </div>
-        <div class="memory-content" id="shared-memory-content">
-          <div class="loading-state">
-            <div class="spinner"></div>
-            <p>加载中...</p>
+          <!-- 共享记忆内容 -->
+          <div id="shared-memory-content" class="memory-section">
+            <div class="memory-grid">
+              <div class="memory-card">
+                <div class="memory-card-header">
+                  <div class="memory-card-title">
+                    <div class="memory-icon icon-shared">🌐</div>
+                    <h2>共享记忆</h2>
+                  </div>
+                  <div class="memory-count" id="shared-count">0</div>
+                </div>
+                <div class="memory-content" id="shared-memory-data">
+                  <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>加载中...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -604,8 +809,96 @@
       }
       
       document.getElementById('username-display').textContent = `用户: ${currentUsername}`;
+      setupNavigation();
       loadAllMemories();
     });
+
+    // 设置导航
+    function setupNavigation() {
+      // 主要导航链接
+      document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const section = this.getAttribute('data-section');
+          showSection(section);
+          
+          // 更新导航状态
+          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+          this.classList.add('active');
+        });
+      });
+
+      // 记忆类型选择下拉框
+      const memorySelector = document.getElementById('memory-type-selector');
+      if (memorySelector) {
+        memorySelector.addEventListener('change', function() {
+          const memoryType = this.value;
+          showMemoryType(memoryType);
+        });
+      }
+
+      // 设置默认状态 - 显示个人记忆的短期记忆
+      setTimeout(() => {
+        document.querySelector('.nav-link[data-section="personal-memory"]').classList.add('active');
+        showSection('personal-memory');
+        showMemoryType('short');
+      }, 100);
+    }
+
+    // 显示section
+    function showSection(section) {
+      // 隐藏所有section
+      document.querySelectorAll('.memory-section').forEach(s => {
+        s.classList.remove('active');
+      });
+      
+      // 显示目标section
+      if (section === 'personal-memory') {
+        document.getElementById('personal-memory-content').classList.add('active');
+        // 隐藏共享记忆卡片
+        const sharedCard = document.querySelector('#shared-memory-content .memory-card');
+        if (sharedCard) {
+          sharedCard.classList.remove('active');
+        }
+      } else if (section === 'shared-memory') {
+        document.getElementById('shared-memory-content').classList.add('active');
+        // 激活共享记忆卡片
+        const sharedCard = document.querySelector('#shared-memory-content .memory-card');
+        if (sharedCard) {
+          // 先隐藏所有个人记忆卡片
+          document.querySelectorAll('#personal-memory-content .memory-card').forEach(card => {
+            card.classList.remove('active');
+          });
+          // 显示共享记忆卡片
+          sharedCard.classList.add('active');
+        }
+        // 切换到共享记忆时加载数据
+        loadSharedMemory();
+      }
+    }
+
+    // 显示记忆类型
+    function showMemoryType(memoryType) {
+      // 隐藏所有记忆卡片
+      document.querySelectorAll('.memory-card').forEach(card => {
+        card.classList.remove('active');
+      });
+      
+      // 显示目标记忆卡片
+      if (memoryType === 'short') {
+        document.getElementById('short-term-card').classList.add('active');
+      } else if (memoryType === 'mid') {
+        document.getElementById('mid-term-card').classList.add('active');
+      } else if (memoryType === 'long') {
+        document.getElementById('long-term-card').classList.add('active');
+      }
+      
+      // 同步更新下拉框的选中状态
+      const memorySelector = document.getElementById('memory-type-selector');
+      if (memorySelector) {
+        memorySelector.value = memoryType;
+      }
+    }
 
     // 获取会话用户名
     function getSessionUsername() {
@@ -629,13 +922,13 @@
       return null;
     }
 
-    // 加载所有记忆
+    // 加载所有个人记忆（共享记忆按需加载）
     async function loadAllMemories() {
       await Promise.all([
         loadShortTermMemory(),
         loadMidTermMemory(),
-        loadLongTermMemory(),
-        loadSharedMemory()
+        loadLongTermMemory()
+        // 移除 loadSharedMemory() - 现在按需加载
       ]);
     }
 
@@ -956,6 +1249,8 @@
     // 加载共享记忆
     async function loadSharedMemory() {
       try {
+        console.log('🔄 开始加载共享记忆，用户名:', currentUsername);
+        
         const response = await fetch('http://127.0.0.1:5002/api/get_shared_memories', {
           method: 'POST',
           headers: {
@@ -967,36 +1262,59 @@
           })
         });
         
+        console.log('📡 共享记忆API响应状态:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
+          console.log('📊 共享记忆API响应数据:', data);
+          
           if (data.success) {
+            console.log('✅ 共享记忆加载成功，数量:', data.memories ? data.memories.length : 0);
             displaySharedMemories(data.memories);
           } else {
-            showEmptyState('shared-memory-content', '加载失败');
+            console.error('❌ 共享记忆API返回失败:', data.error);
+            showEmptyState('shared-memory-data', `加载失败: ${data.error}`);
           }
         } else {
-          showEmptyState('shared-memory-content', '暂无共享记忆');
+          console.error('❌ 共享记忆HTTP请求失败:', response.status);
+          showEmptyState('shared-memory-data', `请求失败 (${response.status})`);
         }
       } catch (error) {
-        console.error('加载共享记忆失败:', error);
-        showEmptyState('shared-memory-content', '加载失败');
+        console.error('❌ 加载共享记忆异常:', error);
+        showEmptyState('shared-memory-data', `加载失败: ${error.message}`);
       }
     }
 
     // 显示共享记忆
     function displaySharedMemories(memories) {
-      const container = document.getElementById('shared-memory-content');
+      console.log('📋 开始显示共享记忆，数据:', memories);
+      
+      const container = document.getElementById('shared-memory-data');
       const countEl = document.getElementById('shared-count');
       
+      if (!container) {
+        console.error('❌ 找不到共享记忆容器元素 shared-memory-data');
+        return;
+      }
+      
+      if (!countEl) {
+        console.error('❌ 找不到共享记忆计数元素 shared-count');
+        return;
+      }
+      
       if (!Array.isArray(memories) || memories.length === 0) {
-        showEmptyState('shared-memory-content', '暂无共享记忆');
+        console.log('📝 共享记忆为空，显示空状态');
+        showEmptyState('shared-memory-data', '暂无共享记忆');
         return;
       }
 
+      console.log(`✅ 准备显示 ${memories.length} 条共享记忆`);
       countEl.textContent = memories.length;
       container.innerHTML = '';
       
-      memories.forEach(memory => {
+      console.log('🧹 已清空容器，开始添加记忆项...');
+      
+      memories.forEach((memory, index) => {
         const item = document.createElement('div');
         item.className = 'shared-memory-item';
         
@@ -1006,12 +1324,15 @@
         const timestamp = memory.timestamp || '未知时间';
         const source = memory.source || '未知来源';
         
+        // 截断过长的内容以保持界面整洁
+        const truncatedContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
+        
         item.innerHTML = `
           <div class="shared-item-header">
             <span class="shared-item-id">${id.substring(0, 8)}...</span>
             <span class="shared-item-user">${userId}</span>
           </div>
-          <div class="shared-item-content">${content}</div>
+          <div class="shared-item-content">${truncatedContent}</div>
           <div class="shared-item-meta">
             <div class="meta-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
@@ -1030,7 +1351,27 @@
         `;
         
         container.appendChild(item);
+        
+        // 每添加10个项目输出一次日志
+        if ((index + 1) % 10 === 0) {
+          console.log(`📝 已添加 ${index + 1} 条记忆项到容器`);
+        }
       });
+      
+      console.log(`🎉 完成添加所有 ${memories.length} 条记忆项`);
+      console.log('📊 容器子元素数量:', container.children.length);
+      console.log('🔍 容器样式检查:');
+      console.log('  - display:', window.getComputedStyle(container).display);
+      console.log('  - visibility:', window.getComputedStyle(container).visibility);
+      console.log('  - height:', window.getComputedStyle(container).height);
+      
+      // 检查父级容器的可见性
+      const memoryCard = container.closest('.memory-card');
+      if (memoryCard) {
+        console.log('🔍 记忆卡片样式检查:');
+        console.log('  - display:', window.getComputedStyle(memoryCard).display);
+        console.log('  - classList:', memoryCard.classList.toString());
+      }
     }
 
     // 显示空状态

@@ -257,7 +257,7 @@ def get_chat_messages(user_id: str, conversation_id: str, project_name: str = "d
             return json.load(f)
     return None
 
-def save_chat_conversation(username, conversation_id, user_message, ai_response, model, shared_memory_enabled=False, personal_memory_enabled=True):
+def save_chat_conversation(username, conversation_id, user_message, ai_response, model, shared_memory_enabled=False, personal_memory_enabled=True, update_last_ai_message=False, user_message_only=False):
     """保存聊天对话到chat文件夹 """
     
     # 创建用户目录
@@ -290,21 +290,51 @@ def save_chat_conversation(username, conversation_id, user_message, ai_response,
         except Exception as e:
             print(f"读取对话文件失败: {e}")
     
-    # 添加新消息
-    new_messages = [
-        {
+    # 检查是否需要更新最后一条AI消息
+    if update_last_ai_message and conversation_data.get('messages'):
+        # 更新最后一条AI消息
+        messages = conversation_data['messages']
+        ai_message_found = False
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i]['type'] == 'assistant':
+                messages[i]['content'] = ai_response
+                messages[i]['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ai_message_found = True
+                break
+        
+        # 如果没有找到AI消息，则添加一个（这种情况发生在只保存了用户消息后）
+        if not ai_message_found:
+            new_ai_message = {
+                'type': 'assistant',
+                'content': ai_response,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            conversation_data['messages'].append(new_ai_message)
+    elif user_message_only:
+        # 只添加用户消息（AI回复稍后添加）
+        new_user_message = {
             'type': 'user',
             'content': user_message,
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        },
-        {
-            'type': 'assistant',
-            'content': ai_response,
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
-    ]
+        conversation_data['messages'].append(new_user_message)
+    else:
+        # 添加新消息对
+        new_messages = [
+            {
+                'type': 'user',
+                'content': user_message,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            },
+            {
+                'type': 'assistant',
+                'content': ai_response,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+        ]
+        
+        conversation_data['messages'].extend(new_messages)
     
-    conversation_data['messages'].extend(new_messages)
     conversation_data['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     conversation_data['shared_memory_enabled'] = shared_memory_enabled
     conversation_data['personal_memory_enabled'] = personal_memory_enabled
@@ -861,25 +891,50 @@ def get_shared_memories():
         username = data.get('username')
         limit = data.get('limit', 50)
         
+        print(f"\n📊 获取共享记忆请求:")
+        print(f"  - 用户名: {username}")
+        print(f"  - 限制数量: {limit}")
+        
         if not username:
             return jsonify({"success": False, "error": "缺少用户名"})
         
         # 获取所有共享记忆
         all_memories = store.list_memories()
+        print(f"  - 总记忆数量: {len(all_memories)}")
         
         # 转换为字典格式
         memories_list = []
-        for mem in all_memories[:limit]:
-            # 将时间戳转换为可读格式
-            timestamp_str = datetime.fromtimestamp(mem.created_at).strftime('%Y-%m-%d %H:%M:%S') if mem.created_at else '未知时间'
-            
-            memories_list.append({
-                'id': mem.id,
-                'user_id': mem.source_user_id,
-                'content': mem.cot_text or mem.raw_text,  # 优先使用cot_text
-                'timestamp': timestamp_str,
-                'source': mem.meta.get('source', 'conversation') if mem.meta else 'conversation'
-            })
+        for i, mem in enumerate(all_memories[:limit]):
+            try:
+                # 将时间戳转换为可读格式
+                timestamp_str = datetime.fromtimestamp(mem.created_at).strftime('%Y-%m-%d %H:%M:%S') if mem.created_at else '未知时间'
+                
+                # 安全地获取内容
+                content = ""
+                if hasattr(mem, 'cot_text') and mem.cot_text and mem.cot_text.strip():
+                    content = mem.cot_text.strip()
+                elif hasattr(mem, 'raw_text') and mem.raw_text and mem.raw_text.strip():
+                    content = mem.raw_text.strip()
+                else:
+                    content = "无内容"
+                
+                memory_data = {
+                    'id': mem.id,
+                    'user_id': mem.source_user_id,
+                    'content': content,
+                    'timestamp': timestamp_str,
+                    'source': mem.meta.get('source', 'conversation') if hasattr(mem, 'meta') and mem.meta else 'conversation'
+                }
+                memories_list.append(memory_data)
+                
+                if i < 3:  # 打印前3条记忆的详细信息用于调试
+                    print(f"  - 记忆 {i+1}: ID={mem.id}, 用户={mem.source_user_id}, 内容长度={len(memory_data['content'])}")
+                    
+            except Exception as mem_error:
+                print(f"  - 处理记忆 {i} 失败: {mem_error}")
+                continue
+        
+        print(f"  - 成功处理记忆数量: {len(memories_list)}")
         
         return jsonify({
             "success": True,
@@ -888,7 +943,7 @@ def get_shared_memories():
         })
         
     except Exception as e:
-        print(f"获取共享记忆失败: {e}")
+        print(f"❌ 获取共享记忆失败: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -966,10 +1021,13 @@ def chat_direct():
                 yield f"data: {json.dumps({'error': '请先配置OpenAI API Key'}, ensure_ascii=False)}\n\n"
                 return
             
+            # 使用局部变量来避免作用域问题
+            current_conversation_id = conversation_id
+            
             # 构建对话历史上下文
             conversation_context = ""
-            if conversation_id:
-                conversation_data = load_conversation_history(username, conversation_id)
+            if current_conversation_id:
+                conversation_data = load_conversation_history(username, current_conversation_id)
                 if conversation_data and conversation_data.get('messages'):
                     history_messages = conversation_data['messages']
                     if history_messages:
@@ -1057,6 +1115,18 @@ def chat_direct():
                 prompt = get_baseline_answer_prompt_no_profile(message, conversation_context)
                 print("📝 使用基线提示词")
             
+            # 🚀 立即保存用户消息，确保对话文件存在，避免切换时的"对话不存在"错误
+            try:
+                temp_conversation_id = save_chat_conversation(
+                    username, current_conversation_id, message, "",
+                    model, shared_memory_enabled, personal_memory_enabled, user_message_only=True
+                )
+                print(f"✅ 已立即保存用户消息，对话ID: {temp_conversation_id}")
+                if temp_conversation_id:
+                    current_conversation_id = temp_conversation_id
+            except Exception as e:
+                print(f"⚠️ 立即保存用户消息失败: {e}")
+
             # 🔥 流式调用OpenAI API
             from openai import OpenAI
             client = OpenAI(
@@ -1066,57 +1136,174 @@ def chat_direct():
                 max_retries=2
             )
             
-            stream = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=10000,
-                stream=True  # 🔥 启用流式输出
-            )
+            # 🔥 创建可中断的流式调用
+            try:
+                stream = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=10000,
+                    stream=True  # 🔥 启用流式输出
+                )
+            except Exception as e:
+                yield f"data: {json.dumps({'error': f'创建流式调用失败: {str(e)}'}, ensure_ascii=False)}\n\n"
+                return
             
             # 收集完整回复
             full_response = ""
+            stream_interrupted = False
+            chunk_count = 0  # 用于定期保存
             
-            # 逐块发送数据
-            for chunk in stream:
-                # 检查 choices 是否为空
-                if chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta
-                    if delta.content:
-                        content = delta.content
-                        full_response += content
-                        # 发送SSE格式数据
-                        yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            # 定义一个保存函数，用于在任何情况下保存对话
+            def save_interrupted_conversation():
+                """保存被中断的对话"""
+                # 即使没有AI回复，也要保存用户的消息
+                response_to_save = full_response if full_response.strip() else "（回复被用户终止）"
+                print(f"💾 保存被中断的对话，用户消息: {message[:50]}...，AI回复长度: {len(full_response)} 字符")
+                
+                try:
+                    # 保存到个人记忆（即使AI回复为空也要保存用户消息）
+                    if username in memoryos_instances:
+                        memoryos_instance = memoryos_instances[username]
+                        memoryos_instance.add_memory(message, response_to_save)
+                        print(f"✅ 中断的对话已保存到短期记忆")
+                    
+                    # 保存对话到文件 - 更新最后一条AI消息
+                    saved_conversation_id = save_chat_conversation(
+                        username, current_conversation_id, message, response_to_save,
+                        model, shared_memory_enabled, personal_memory_enabled, update_last_ai_message=True
+                    )
+                    
+                    # 检测思维链断裂（只有AI有回复时才检测）
+                    if shared_memory_enabled and full_response.strip():
+                        try:
+                            check_and_store_chain_break(username, message, full_response)
+                        except Exception as e:
+                            print(f"⚠️ 思维链检测失败: {e}")
+                    
+                    print(f"✅ 中断的消息已正常保存，conversation_id: {saved_conversation_id}")
+                    return saved_conversation_id
+                except Exception as e:
+                    print(f"❌ 保存中断消息失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return None
+
+            try:
+                # 逐块发送数据
+                for chunk in stream:
+                    try:
+                        # 检查 choices 是否为空
+                        if chunk.choices and len(chunk.choices) > 0:
+                            delta = chunk.choices[0].delta
+                            if delta.content:
+                                content = delta.content
+                                full_response += content
+                                chunk_count += 1
+                                
+                                # 🔄 定期保存AI回复内容（每10个chunk保存一次），确保切换时能看到已生成的内容
+                                if chunk_count % 10 == 0:
+                                    try:
+                                        save_chat_conversation(
+                                            username, current_conversation_id, message, full_response,
+                                            model, shared_memory_enabled, personal_memory_enabled, 
+                                            update_last_ai_message=True
+                                        )
+                                        print(f"🔄 已保存AI回复片段，长度: {len(full_response)} 字符")
+                                    except Exception as e:
+                                        print(f"⚠️ 保存AI回复片段失败: {e}")
+                                
+                                # 发送SSE格式数据
+                                yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+                    except (GeneratorExit, StopIteration) as e:
+                        # 客户端断开连接
+                        print(f"🛑 检测到客户端断开连接: {e}")
+                        stream_interrupted = True
+                        break
+                    except Exception as e:
+                        print(f"⚠️ 处理流式数据时出错: {e}")
+                        continue
+                        
+            except GeneratorExit:
+                # 客户端主动断开连接（AbortController触发）
+                print("🛑 客户端主动终止连接（AbortController） - 开始保存操作")
+                stream_interrupted = True
+                
+                # 尝试关闭 OpenAI 流
+                try:
+                    if hasattr(stream, 'close'):
+                        stream.close()
+                    print("🔒 OpenAI 流已关闭")
+                except Exception as e:
+                    print(f"⚠️ 关闭 OpenAI 流时出错: {e}")
+                
+                # 🚀 立即保存被中断的内容（在yield之前）
+                try:
+                    saved_conversation_id = save_interrupted_conversation()
+                    print(f"💾 保存操作完成，结果: {saved_conversation_id}")
+                except Exception as e:
+                    print(f"❌ 保存操作出现异常: {e}")
+                    saved_conversation_id = None
+                
+                # 尝试发送终止信号（如果可能的话）
+                try:
+                    yield f"data: {json.dumps({'done': True, 'conversation_id': saved_conversation_id}, ensure_ascii=False)}\n\n"
+                    print("📤 终止信号发送成功")
+                except Exception as e:
+                    # 如果无法发送，也没关系，因为客户端已经断开
+                    print(f"⚠️ 无法发送终止信号: {e}")
+                
+                print("🛑 GeneratorExit 异常处理完成")
+                return
+                
+            except Exception as e:
+                print(f"❌ 流式处理出现异常: {e}")
+                yield f"data: {json.dumps({'error': f'流式处理异常: {str(e)}'}, ensure_ascii=False)}\n\n"
+                return
+            
+            # 如果被中断，保存中断的内容然后返回
+            if stream_interrupted:
+                print("🛑 流式输出被中断，尝试保存已生成的内容")
+                saved_conversation_id = save_interrupted_conversation()
+                try:
+                    yield f"data: {json.dumps({'done': True, 'conversation_id': saved_conversation_id}, ensure_ascii=False)}\n\n"
+                except:
+                    pass
+                return
             
             # 发送结束标记
             yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
             
             print(f"✅ 流式输出完成，总长度: {len(full_response)} 字符")
             
-            # 保存到个人记忆
-            if username in memoryos_instances:
-                try:
-                    memoryos_instance = memoryos_instances[username]
-                    memoryos_instance.add_memory(message, full_response)
-                    print(f"✅ 对话已保存到短期记忆")
-                except Exception as e:
-                    print(f"❌ 保存记忆失败: {e}")
-            
-            # 保存对话
-            saved_conversation_id = save_chat_conversation(
-                username, conversation_id, message, full_response,
-                model, shared_memory_enabled, personal_memory_enabled
-            )
-            
-            # 检测思维链断裂
-            if shared_memory_enabled:
-                try:
-                    check_and_store_chain_break(username, message, full_response)
-                except Exception as e:
-                    print(f"⚠️ 思维链检测失败: {e}")
-            
-            # 发送对话ID
-            yield f"data: {json.dumps({'conversation_id': saved_conversation_id or conversation_id}, ensure_ascii=False)}\n\n"
+            # 只有在正常完成时才保存记忆和对话（不包含被中断的情况）
+            if full_response.strip():  # 确保有内容才保存
+                # 保存到个人记忆
+                if username in memoryos_instances:
+                    try:
+                        memoryos_instance = memoryos_instances[username]
+                        memoryos_instance.add_memory(message, full_response)
+                        print(f"✅ 对话已保存到短期记忆")
+                    except Exception as e:
+                        print(f"❌ 保存记忆失败: {e}")
+                
+                # 保存对话 - 更新最后一条AI消息
+                saved_conversation_id = save_chat_conversation(
+                    username, current_conversation_id, message, full_response,
+                    model, shared_memory_enabled, personal_memory_enabled, update_last_ai_message=True
+                )
+                
+                # 检测思维链断裂
+                if shared_memory_enabled:
+                    try:
+                        check_and_store_chain_break(username, message, full_response)
+                    except Exception as e:
+                        print(f"⚠️ 思维链检测失败: {e}")
+                
+                # 发送对话ID
+                yield f"data: {json.dumps({'conversation_id': saved_conversation_id or current_conversation_id}, ensure_ascii=False)}\n\n"
+            else:
+                print("⚠️ 流式输出为空，跳过保存操作")
             
         except Exception as e:
             print(f"❌ 流式生成失败: {e}")

@@ -664,11 +664,10 @@
       gap: 12px;
     }
 
-    .send-btn {
+    .send-btn, .stop-btn {
       width: 36px;
       height: 36px;
       border: none;
-      background: #165dff;
       color: white;
       border-radius: 50%;
       cursor: pointer;
@@ -676,12 +675,35 @@
       align-items: center;
       justify-content: center;
       transition: all 0.2s;
-      box-shadow: 0 2px 8px rgba(22, 93, 255, 0.3);
       flex-shrink: 0;
+    }
+
+    .send-btn {
+      background: #165dff;
+      box-shadow: 0 2px 8px rgba(22, 93, 255, 0.3);
+    }
+    
+    .stop-btn {
+      background: #ef4444;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+      display: none;
+    }
+    
+    .stop-btn.show {
+      display: flex;
+    }
+    
+    /* 当发送按钮隐藏时（AI回复过程中） */
+    .send-btn.hidden {
+      display: none;
     }
 
     .send-btn:hover {
       background: #0f4cd1;
+    }
+    
+    .stop-btn:hover {
+      background: #dc2626;
     }
 
     .send-btn:disabled {
@@ -694,7 +716,7 @@
       background: #d1d5db;
     }
 
-    .send-btn svg {
+    .send-btn svg, .stop-btn svg {
       width: 16px;
       height: 16px;
     }
@@ -1238,6 +1260,11 @@
                   <polygon points="22,2 15,22 11,13 2,9 22,2"/>
                 </svg>
               </button>
+              <button class="stop-btn" id="stopBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="1"/>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -1364,6 +1391,7 @@
     let selectedModel = 'gpt-4o-mini';
     let sharedMemoryEnabled = true;  // 默认开启共享记忆
     let personalMemoryEnabled = true;  // 个人记忆默认启用
+    let currentAbortController = null;  // 用于终止当前请求
 
     // DOM元素
     const sidebar = document.getElementById('sidebar');
@@ -1371,6 +1399,7 @@
     const chatMessages = document.getElementById('chatMessages');
     const chatInput = document.getElementById('chatInput');
     const sendBtn = document.getElementById('sendBtn');
+    const stopBtn = document.getElementById('stopBtn');
     const newChatBtn = document.getElementById('newChatBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsModal = document.getElementById('settingsModal');
@@ -1607,6 +1636,10 @@
     function setupEventListeners() {
       // 发送消息
       sendBtn.addEventListener('click', sendMessage);
+      
+      // 停止生成
+      stopBtn.addEventListener('click', stopGeneration);
+      
       // 输入框焦点拦截
       chatInput.addEventListener('focus', function(e) {
         if (!requireLogin()) {
@@ -1664,6 +1697,32 @@
       sharedMemoryBtn.addEventListener('click', toggleSharedMemory);
     }
 
+    // 停止生成
+    function stopGeneration() {
+      if (currentAbortController) {
+        console.log('🛑 用户终止AI回复');
+        currentAbortController.abort();
+        currentAbortController = null;
+        
+        // 立即清理所有相关状态
+        sendBtn.classList.remove('hidden');
+        sendBtn.disabled = false;
+        stopBtn.classList.remove('show');
+        chatInput.focus();
+        
+        // 添加一条提示消息
+        const lastMessage = chatMessages.lastElementChild;
+        if (lastMessage && lastMessage.classList.contains('assistant')) {
+          const messageContent = lastMessage.querySelector('.message-content');
+          if (messageContent) {
+            messageContent.innerHTML += '\n\n<em style="color: #6b7280; font-size: 0.9em;">（回复已被用户终止）</em>';
+          }
+        }
+        
+        // 确保UI状态完全恢复，允许立即切换对话
+        console.log('✅ AI回复状态已完全清理，可以立即切换对话');
+      }
+    }
 
     // 发送消息
     async function sendMessage() {
@@ -1705,11 +1764,18 @@
         addNewChatToSidebar(currentChatId, message);
       }
 
-      // 禁用发送按钮，防止重复发送（但保持输入框可用，让用户准备下一个问题）
+      // 隐藏发送按钮，显示停止按钮
       sendBtn.disabled = true;
+      sendBtn.classList.add('hidden');
+      stopBtn.classList.add('show');
+      
+      // 创建 AbortController 用于终止请求
+      currentAbortController = new AbortController();
 
       // 🔥 创建流式消息UI（取代加载消息）
       const streamingMessageDiv = createStreamingMessageUI();
+      
+      let responseCompleted = false; // 跟踪响应是否已完成，需要在finally块中访问
 
       try {
         // 🔥 使用流式API（原接口已改为流式输出）
@@ -1725,7 +1791,8 @@
             conversation_id: currentChatId,
             shared_memory_enabled: sharedMemoryEnabled,
             personal_memory_enabled: personalMemoryEnabled
-          })
+          }),
+          signal: currentAbortController.signal  // 添加终止信号
         });
 
         if (!response.ok) {
@@ -1771,6 +1838,15 @@
                   console.log('✅ 流式输出完成');
                   // 最终渲染，应用语法高亮
                   updateStreamingMessage(streamingMessageDiv, fullResponse, true);
+                  
+                  // 🚀 立即显示发送按钮，隐藏停止按钮
+                  responseCompleted = true;
+                  sendBtn.classList.remove('hidden');
+                  sendBtn.disabled = false;
+                  stopBtn.classList.remove('show');
+                  currentAbortController = null;
+                  chatInput.focus();
+                  break; // 跳出循环，立即结束
                 }
                 
                 if (data.conversation_id) {
@@ -1787,12 +1863,25 @@
         updateChatHistoryWithoutInterruption();
         
       } catch (error) {
-        console.error('发送消息失败:', error);
-        updateStreamingMessage(streamingMessageDiv, '抱歉，发送消息时出现错误。请稍后重试。', true);
+        // 检查是否是用户主动终止
+        if (error.name === 'AbortError') {
+          console.log('✅ 请求已被用户终止');
+          // 不显示错误消息，因为这是用户主动操作
+          // 给后端一些时间来完成保存操作
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } else {
+          console.error('发送消息失败:', error);
+          updateStreamingMessage(streamingMessageDiv, '抱歉，发送消息时出现错误。请稍后重试。', true);
+        }
       } finally {
-        // 重新启用发送按钮
+        // 立即重新显示发送按钮，隐藏停止按钮，确保UI状态完全恢复
+        sendBtn.classList.remove('hidden');
         sendBtn.disabled = false;
-        // 输入框保持启用状态，自动聚焦方便继续对话
+        stopBtn.classList.remove('show');
+        currentAbortController = null;
+        
+        // 确保UI完全响应，允许立即切换对话
+        console.log('✅ sendMessage状态已完全清理，UI可立即响应');
         chatInput.focus();
       }
     }
@@ -1941,8 +2030,8 @@
       // 清空输入框
       chatInput.value = '';
       
-      // 恢复输入框到正常位置
-      restoreInputBox();
+      // 居中输入框（新建对话时显示居中状态）
+      centerInputBox();
       
       // 显示空状态
       showEmptyState();
@@ -2057,11 +2146,24 @@
             });
             chatHistoryContainer.appendChild(chatItem);
           });
+          
+          // 如果没有当前对话，显示居中输入框（无论是没有历史对话还是刚进入页面）
+          if (!currentChatId) {
+            showNewChatInterface();
+          }
         } else {
           console.error('加载聊天历史失败:', data.error);
+          // 即使加载失败，如果没有任何对话，也应该显示居中输入框
+          if (!currentChatId) {
+            showNewChatInterface();
+          }
         }
       } catch (error) {
         console.error('加载聊天历史失败:', error);
+        // 即使出错，如果没有任何对话，也应该显示居中输入框
+        if (!currentChatId) {
+          showNewChatInterface();
+        }
       }
     }
 
@@ -2170,9 +2272,21 @@
     }
 
     // 加载指定聊天
-    async function loadChat(chatId, clickedElement) {
+    async function loadChat(chatId, clickedElement, retryCount = 0) {
       // 🔒 登录拦截
       if (!requireLogin()) return;
+      
+      // 🚫 如果AI正在回复，先终止它，确保可以立即切换对话
+      if (currentAbortController || sendBtn.disabled) {
+        console.log('🔄 检测到AI正在回复，先终止以确保对话切换响应');
+        if (currentAbortController) {
+          currentAbortController.abort();
+          currentAbortController = null;
+        }
+        sendBtn.classList.remove('hidden');
+        sendBtn.disabled = false;
+        stopBtn.classList.remove('show');
+      }
       
       try {
         const response = await fetch('http://127.0.0.1:5002/get_chat_messages', {
@@ -2215,7 +2329,21 @@
             clickedElement.classList.add('active');
           }
         } else {
-          console.error('加载对话消息失败:', data.error);
+          // 如果是"对话不存在"错误且重试次数少于3次，则重试
+          if (data.error && data.error.includes('对话不存在') && retryCount < 3) {
+            console.log(`🔄 对话尚未保存，${retryCount + 1}/3 次重试...`);
+            // 等待500ms后重试
+            setTimeout(() => {
+              loadChat(chatId, clickedElement, retryCount + 1);
+            }, 500);
+            return;
+          } else {
+            console.error('加载对话消息失败:', data.error);
+            // 如果重试次数已达上限，显示错误信息
+            if (retryCount >= 3) {
+              console.log('⚠️ 对话加载失败，可能正在保存中，请稍后重试');
+            }
+          }
         }
       } catch (error) {
         console.error('加载对话消息失败:', error);
