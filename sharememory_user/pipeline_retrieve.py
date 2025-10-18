@@ -11,6 +11,7 @@ from embedding import Embedder
 from models import MemoryItem, UserProfile
 from storage import JsonStore
 from .utils import l2_normalize, softmax, entropy, js_divergence
+from llm_qc import LLMQC
 
 
 @dataclass
@@ -26,6 +27,7 @@ class RetrievePipeline:
         self.embed = Embedder(cfg)
         self._peer_embedding_cache: Dict[str, Dict[str, np.ndarray]] = {}
         self._cached_peers: List[Peer] = []
+        self.llm = LLMQC(cfg)
 
     def precompute_peer_embeddings(self, peers: List[Peer]):
         """Precomputes and caches query and state vectors for a list of peers."""
@@ -185,6 +187,15 @@ class RetrievePipeline:
         
         # Final top_k selection from the candidates
         indices = order[:top_k]
+
+        # LLM-based usefulness filtering (batch): collect all focus_queries, call LLM once, filter indices
+        topk_focus_queries = [candidate_memories[idx].focus_query for idx in indices]
+        useful_flags = self.llm.are_focus_queries_useful(task, topk_focus_queries)
+        
+        filtered_indices: List[int] = []
+        for i, idx in enumerate(indices):
+            if i < len(useful_flags) and useful_flags[i]:
+                filtered_indices.append(idx)
         
         results = [
             {
@@ -192,7 +203,7 @@ class RetrievePipeline:
                 "score": float(tilde_alpha[idx]),
                 "memory": candidate_memories[idx].to_dict(),
             }
-            for r, idx in enumerate(indices)
+            for r, idx in enumerate(filtered_indices)
         ]
         return {
             "items": results,
