@@ -59,6 +59,18 @@ Return a boolean list indicating matches.
 `{"matches": [<bool>, <bool>, ...]}`
 """
 
+# Decide whether memories' focus_queries are genuinely useful to answer the user's current query (batch version)
+FOCUS_USEFULNESS_BATCH_SYSTEM_PROMPT = """You are an expert assistant deciding which memories' focus_queries would concretely help answer the user's current question.
+
+Rules:
+- For each focus_query, mark useful=true only if it directly addresses the same task or resolves a key subproblem of the user's question.
+- If a focus_query is generic, unrelated, or would not improve the answer quality, mark useful=false.
+- Be strict. Prefer false on weak or tangential matches.
+
+Output JSON only (list of booleans in the same order as the input focus_queries):
+{"useful": [<boolean>, <boolean>, ...]}
+"""
+
 COT_MERGING_SYSTEM_PROMPT = """You are an expert in merging structured reasoning.
 Merge the following two Chain-of-Thought summaries into one coherent, comprehensive summary.
 
@@ -171,6 +183,58 @@ class LLMQC:
         except Exception as e:
             warnings.warn(f"OpenAI call for query matching failed: {e}. Defaulting to no matches.")
             return [False] * len(candidate_queries)
+
+    def are_focus_queries_useful(self, user_query: str, focus_queries: List[str]) -> List[bool]:
+        """Decides via LLM (in batch) whether each memory's focus_query is useful for answering user_query.
+
+        Fallback heuristic if LLM unavailable: keyword overlap check for each focus_query.
+        """
+        if not focus_queries:
+            return []
+        
+        # Heuristic fallback
+        if self._provider != "openai" or not self._client:
+            uq = (user_query or "").lower()
+            uq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", uq) if len(t) >= 3)
+            results = []
+            for fq in focus_queries:
+                fq_lower = (fq or "").lower()
+                if not fq_lower.strip():
+                    results.append(False)
+                    continue
+                fq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", fq_lower) if len(t) >= 3)
+                results.append(len(uq_terms & fq_terms) > 0)
+            return results
+
+        # LLM batch path
+        try:
+            focus_list_str = "\n".join([f"{i+1}. {fq}" for i, fq in enumerate(focus_queries)])
+            user_prompt = (
+                f"User Query:\n---\n{user_query}\n---\n\n"
+                f"Focus Queries (numbered):\n---\n{focus_list_str}\n---\n"
+            )
+            response = self._call_llm(FOCUS_USEFULNESS_BATCH_SYSTEM_PROMPT, user_prompt)
+            useful_list = response.get("useful", [])
+            # Validate response length and types
+            if isinstance(useful_list, list) and len(useful_list) == len(focus_queries):
+                return [bool(u) for u in useful_list]
+            # Fallback if response malformed
+            warnings.warn(f"LLM returned malformed useful list (expected {len(focus_queries)}, got {len(useful_list)}). Using heuristic.")
+        except Exception as e:
+            warnings.warn(f"OpenAI call for focus usefulness failed: {e}. Falling back to heuristic.")
+        
+        # Fallback heuristic on error
+        uq = (user_query or "").lower()
+        uq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", uq) if len(t) >= 3)
+        results = []
+        for fq in focus_queries:
+            fq_lower = (fq or "").lower()
+            if not fq_lower.strip():
+                results.append(False)
+                continue
+            fq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", fq_lower) if len(t) >= 3)
+            results.append(len(uq_terms & fq_terms) > 0)
+        return results
 
     def merge_cot(self, cot1: str, cot2: str) -> str:
         """Merges two CoT strings using an LLM."""
