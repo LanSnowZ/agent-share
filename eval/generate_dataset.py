@@ -75,15 +75,15 @@ class DatasetGenerator:
         persona = PERSONAS[persona_id]
 
         ai_expert_system_prompt = (
-            f"You are a world-class AI research scientist, capable of explaining complex topics "
-            f"like '{topic['name']}' with clarity and depth. Provide comprehensive and accurate answers."
+            f"你是一位世界级的 AI 研究科学家，能够清晰且深入地解释复杂主题（例如 '{topic['name']}'）。"
+            f"请提供全面且准确的回答。"
         )
         user_persona_system_prompt = (
-            f"You are role-playing as a '{persona['name']}'.\n"
-            f"Your background is: '{persona['profile_text']}'.\n"
-            f"Your task is to ask insightful questions about '{topic['name']}' based on the ongoing conversation.\n"
-            f"Your follow-up questions must be highly characteristic of your persona and follow this style: '{persona['follow_up_style']}'.\n"
-            f"IMPORTANT: Only output the user's question itself, without any preamble like 'User:' or quotes."
+            f"你现在扮演 '{persona['name']}'。\n"
+            f"你的背景：'{persona['profile_text']}'。\n"
+            f"你的任务：基于当前对话，围绕 '{topic['name']}' 提出有洞见的问题。\n"
+            f"追问必须高度符合你的画像特征，风格应为：'{persona['follow_up_style']}'。\n"
+            f"重要：只输出用户问题本身，不要包含诸如 'User:' 等前缀，也不要加引号。"
         )
 
         conversation_log: List[str] = []
@@ -109,7 +109,7 @@ class DatasetGenerator:
             # Persona User asks a follow-up question
             messages[0] = {"role": "system", "content": user_persona_system_prompt}
             
-            user_instruction = "Based on the conversation history above, generate your next single follow-up question now."
+            user_instruction = "请基于上述对话历史，立即生成你下一条且仅一条的追问。"
             messages.append({"role": "user", "content": user_instruction})
 
             user_follow_up = self._call_llm(messages, temperature=0.7)

@@ -1,36 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Prompts used for the synthetic dataset generator.
+用于合成数据集生成器的提示词。
 """
 
 def get_dialogue_generation_prompt(topic: str, query: str, persona_name: str, persona_profile: str, follow_up_style: str) -> str:
     """
-    Creates the system prompt for generating a multi-turn dialogue.
+    生成多轮对话的系统提示词。
     """
-    return f"""You are a powerful simulation engine for generating high-quality academic dialogues. Your task is to create a realistic, in-depth, 3-turn conversation about "{topic}".
+    return f"""你是一个能够生成高质量学术对话的强大模拟引擎。你的任务是围绕“{topic}”创建一段真实、深入的 3 轮对话。
 
-**ROLES:**
-*   **User**: You are a **{persona_name}**. Your background is: "{persona_profile}".
-*   **AI**: You are a world-class AI research scientist, capable of explaining complex topics with clarity and depth.
+**角色设定：**
+*   **User**：你扮演 **{persona_name}**。背景信息为：“{persona_profile}”。
+*   **AI**：你是一位世界级的 AI 研究科学家，能够清晰且深入地解释复杂主题。
 
-**TASK:**
-Generate a 3-turn dialogue starting with the user's initial query. The user's follow-up questions must reflect their specific persona and background.
+**任务要求：**
+从用户的初始问题开始生成 3 轮对话。后续追问必须体现该人物画像的特征与背景。
 
-*   **Turn 1**:
-    *   **User**: As a {persona_name}, asks the initial question: "{query}"
-    *   **AI**: Provides a comprehensive and accurate answer to the core question.
+*   **第 1 轮**：
+    *   **User**：以 {persona_name} 的身份提出首个问题：“{query}”
+    *   **AI**：对核心问题给出全面且准确的回答。
 
-*   **Turn 2**:
-    *   **User**: Based on the AI's first answer, the user asks a follow-up question that is highly characteristic of their persona. The question should follow this style: "{follow_up_style}".
-    *   **AI**: Answers the nuanced follow-up, providing deeper technical details, theoretical background, or practical advice as needed.
+*   **第 2 轮**：
+    *   **User**：基于 AI 的首轮回答，提出高度符合其人物特征的追问。追问风格应为：“{follow_up_style}”。
+    *   **AI**：回答该追问，必要时提供更深入的技术细节、理论背景或实践建议。
 
-*   **Turn 3**:
-    *   **User**: Asks a final question to broaden the perspective, perhaps asking about limitations, future trends, or comparisons to alternative technologies.
-    *   **AI**: Provides a concluding high-level summary, addressing the user's final question and wrapping up the discussion.
+*   **第 3 轮**：
+    *   **User**：提出最后一个问题以拓展视角，例如询问限制、未来趋势或与替代技术的比较。
+    *   **AI**：给出收尾性的高层总结，同时回答该问题并结束讨论。
 
-**OUTPUT INSTRUCTIONS:**
-*   You MUST generate the full 3-turn dialogue.
-*   The dialogue must be technically accurate and detailed.
-*   Start each line with "User:" or "AI:".
-*   Do NOT add any introductory or concluding text outside of the dialogue itself.
+**输出要求：**
+*   必须生成完整的 3 轮对话。
+*   对话需技术准确且细节充分。
+*   每行以 "User:" 或 "AI:" 开头。
+*   禁止在对话外添加任何引言或结语。
 """

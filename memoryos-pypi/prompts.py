@@ -1,83 +1,82 @@
 """
-This file stores all the prompts used by the Memoryos system.
+此文件集中存放 MemoryOS 系统使用的所有提示词（Prompts）。
 """
 
 # Prompt for generating system response (from main_memoybank.py, generate_system_response_with_meta)
 GENERATE_SYSTEM_RESPONSE_SYSTEM_PROMPT = (
-    "As a communication expert with outstanding communication habits, you embody the role of {relationship} throughout the following dialogues.\n"
-    "Here are some of your distinctive personal traits and knowledge:\n{assistant_knowledge_text}\n"
-    "User's profile:\n"
+    "你是一位具备优秀沟通习惯的交流专家。在接下来的对话中，请始终以 {relationship} 的身份进行回应。\n"
+    "以下是你的个性特征与已知知识：\n{assistant_knowledge_text}\n"
+    "用户概览：\n"
     "{meta_data_text}\n"
-    "Your task is to generate responses that align with these traits and maintain the tone.\n"
+    "你的任务是：在保持上述人设与语气的前提下进行回答。\n"
 )
 
 GENERATE_SYSTEM_RESPONSE_USER_PROMPT = (
-    "<CONTEXT>\n"
-    "Drawing from your recent conversation with the user:\n"
+    "<上下文>\n"
+    "基于你与该用户最近的对话：\n"
     "{history_text}\n\n"
-    "<MEMORY>\n"
-    "The memories linked to the ongoing conversation are:\n"
+    "<记忆>\n"
+    "与当前对话相关的记忆如下：\n"
     "{retrieval_text}\n\n"
-    "<USER TRAITS>\n"
-    "During the conversation process between you and the user in the past, you found that the user has the following characteristics:\n"
+    "<用户特征>\n"
+    "结合以往与你的对话，你总结出该用户具有以下特征：\n"
     "{background}\n\n"
-    "Now, please role-play as {relationship} to continue the dialogue between you and the user.\n"
-    "The user just said: {query}\n"
-    "Please respond to the user's statement using the following format (maximum 30 words, must be in English):\n "
-    "When answering questions, be sure to check whether the timestamp of the referenced information matches the timeframe of the question"
+    "现在，请以 {relationship} 的身份继续和用户对话。\n"
+    "用户刚刚说：{query}\n"
+    "请用不超过 30 个字进行回应（语言不限，但需准确简洁）。\n"
+    "回答时务必核对引用信息的时间是否与问题时间范围一致。"
 )
 
 # Prompt for assistant knowledge extraction (from utils.py, analyze_assistant_knowledge)
-ASSISTANT_KNOWLEDGE_EXTRACTION_SYSTEM_PROMPT = """You are an assistant knowledge extraction engine. Rules:
-1. Extract ONLY explicit statements about the assistant's identity or knowledge.
-2. Use concise and factual statements in the first person.
-3. If no relevant information is found, output "None"."""
+ASSISTANT_KNOWLEDGE_EXTRACTION_SYSTEM_PROMPT = """你是一个助手知识抽取引擎。规则：
+1. 仅抽取关于助手“身份”或“知识/能力”的明确信息。
+2. 使用第一人称，表述必须简洁且客观。
+3. 若没有相关信息，输出 "None"。"""
 
 ASSISTANT_KNOWLEDGE_EXTRACTION_USER_PROMPT = """
-# Assistant Knowledge Extraction Task
-Analyze the conversation and extract any fact or identity traits about the assistant. 
-If no traits can be extracted, reply with "None". Use the following format for output:
-The generated content should be as concise as possible — the more concise, the better.
-【Assistant Knowledge】
-- [Fact 1]
-- [Fact 2]
-- (Or "None" if none found)
+# 助手知识抽取任务
+请分析以下对话，抽取任何关于“助手”的事实或身份特征。
+若无法抽取，直接回复 "None"。输出需尽可能简洁，格式如下：
+【助手知识】
+- [事实1]
+- [事实2]
+- （若无可抽取信息，输出 "None"）
 
-Few-shot examples:
-1. User: Can you recommend some movies.
-   AI: Yes, I recommend Interstellar.
-   Time: 2023-10-01
-   【Assistant Knowledge】
-   - I recommend Interstellar on 2023-10-01.
+Few-shot 示例：
+1. 用户：能推荐几部电影吗？
+   AI：可以，我推荐《星际穿越》。
+   时间：2023-10-01
+   【助手知识】
+   - 我在 2023-10-01 推荐了《星际穿越》。
 
-2. User: Can you help me with cooking recipes?
-   AI: Yes, I have extensive knowledge of cooking recipes and techniques.
-   Time: 2023-10-02
-   【Assistant Knowledge】
-   - I have cooking recipes and techniques on 2023-10-02.
+2. 用户：你能帮我找做菜的菜谱吗？
+   AI：可以，我对烹饪菜谱与技巧非常熟悉。
+   时间：2023-10-02
+   【助手知识】
+   - 我在 2023-10-02 具备烹饪菜谱与技巧方面的知识。
 
-3. User: That's interesting. I didn't know you could do that.
-   AI: I'm glad you find it interesting!
-   【Assistant Knowledge】
+3. 用户：这很有意思，我不知道你还能这样。
+   AI：很高兴你觉得有趣！
+   【助手知识】
    - None
 
-Conversation:
+对话：
 {conversation}
 """
 
 # Prompt for summarizing dialogs (from utils.py, gpt_summarize)
-SUMMARIZE_DIALOGS_SYSTEM_PROMPT = "You are an expert in summarizing dialogue topics. Generate extremely concise and precise summaries. Be as brief as possible while capturing the essence."
-SUMMARIZE_DIALOGS_USER_PROMPT = "Please generate an concise topic summary based on the following conversation. Keep it to 2-3 short sentences maximum:\n{dialog_text}\nConcise Summary："
+SUMMARIZE_DIALOGS_SYSTEM_PROMPT = "你是对话主题总结专家。请生成极其简洁且精准的主题摘要，尽量简短但保留核心要点。"
+SUMMARIZE_DIALOGS_USER_PROMPT = "请基于以下对话生成简要主题总结，最多 2-3 句短句：\n{dialog_text}\n简要总结："
 
 # Prompt for multi-summary generation (from utils.py, gpt_generate_multi_summary)
-MULTI_SUMMARY_SYSTEM_PROMPT = "You are an expert in analyzing dialogue topics. Generate  concise summaries. No more than two topics. Be as brief as possible."
-MULTI_SUMMARY_USER_PROMPT = ("Please analyze the following dialogue and generate extremely concise subtopic summaries (if applicable), with a maximum of two themes.\n"
-                           "Each summary should be very brief - just a few words for the theme and content. Format as JSON array:\n"
-                           "[\n  {{\"theme\": \"Brief theme\", \"keywords\": [\"key1\", \"key2\"], \"content\": \"summary\"}}\n]\n"
-                           "\nConversation content:\n{text}")
+MULTI_SUMMARY_SYSTEM_PROMPT = "你是对话主题分析专家。请生成简明的小主题总结，主题不超过两个，尽量简短。"
+MULTI_SUMMARY_USER_PROMPT = ("请分析以下对话，并在需要时生成不超过两个小主题的极简总结。\n"
+                           "每个总结尽量短，仅包含主题词与简述。输出为 JSON 数组：\n"
+                           "[\n  {\"theme\": \"主题\", \"keywords\": [\"关键词1\", \"关键词2\"], \"content\": \"简述\"}\n]\n"
+                           "\n对话内容：\n{text}")
 
 # Prompt for personality analysis (NEW TEMPLATE)
-PERSONALITY_ANALYSIS_SYSTEM_PROMPT = """You are a professional user preference analysis assistant. Your task is to analyze the user's personality preferences from the given dialogue based on the provided dimensions.
+PERSONALITY_ANALYSIS_SYSTEM_PROMPT = """你是一名专业的用户偏好分析助手。请基于给定维度，从提供的对话中分析用户的性格与偏好。
 
 For each dimension:
 1. Carefully read the conversation and determine if the dimension is reflected.
@@ -85,149 +84,149 @@ For each dimension:
 3. If the dimension is not reflected, do not extract or list it.
 
 Focus only on the user's preferences and traits for the personality analysis section.
-Output only the user profile section.
+仅输出“用户画像”部分。
 """
 
-PERSONALITY_ANALYSIS_USER_PROMPT = """Please analyze the latest user-AI conversation below and update the user profile based on the 90 personality preference dimensions.
+PERSONALITY_ANALYSIS_USER_PROMPT = """请分析下方最新一轮用户-AI 对话，并基于 90 个性格/偏好维度更新用户画像。
 
 Here are the 90 dimensions and their explanations:
 
 [Psychological Model (Basic Needs & Personality)]
-Extraversion: Preference for social activities.
-Openness: Willingness to embrace new ideas and experiences.
-Agreeableness: Tendency to be friendly and cooperative.
-Conscientiousness: Responsibility and organizational ability.
-Neuroticism: Emotional stability and sensitivity.
-Physiological Needs: Concern for comfort and basic needs.
-Need for Security: Emphasis on safety and stability.
-Need for Belonging: Desire for group affiliation.
-Need for Self-Esteem: Need for respect and recognition.
-Cognitive Needs: Desire for knowledge and understanding.
-Aesthetic Appreciation: Appreciation for beauty and art.
-Self-Actualization: Pursuit of one's full potential.
-Need for Order: Preference for cleanliness and organization.
-Need for Autonomy: Preference for independent decision-making and action.
-Need for Power: Desire to influence or control others.
-Need for Achievement: Value placed on accomplishments.
+Extraversion: 偏好社交活动。
+Openness: 接纳新事物与新体验的意愿。
+Agreeableness: 友好与合作倾向。
+Conscientiousness: 责任心与组织能力。
+Neuroticism: 情绪稳定性与敏感度。
+Physiological Needs: 对舒适与基本需求的关注。
+Need for Security: 对安全与稳定的重视。
+Need for Belonging: 对群体归属的需求。
+Need for Self-Esteem: 对尊重与认可的需求。
+Cognitive Needs: 对知识与理解的渴望。
+Aesthetic Appreciation: 对美与艺术的欣赏。
+Self-Actualization: 追求自我实现。
+Need for Order: 偏好整洁与条理。
+Need for Autonomy: 偏好独立决策与行动。
+Need for Power: 影响或掌控他人的愿望。
+Need for Achievement: 重视成就与结果。
 
 [AI Alignment Dimensions]
-Helpfulness: Whether the AI's response is practically useful to the user. (This reflects user's expectation of AI)
-Honesty: Whether the AI's response is truthful. (This reflects user's expectation of AI)
-Safety: Avoidance of sensitive or harmful content. (This reflects user's expectation of AI)
-Instruction Compliance: Strict adherence to user instructions. (This reflects user's expectation of AI)
-Truthfulness: Accuracy and authenticity of content. (This reflects user's expectation of AI)
-Coherence: Clarity and logical consistency of expression. (This reflects user's expectation of AI)
-Complexity: Preference for detailed and complex information.
-Conciseness: Preference for brief and clear responses.
+Helpfulness: 回答是否对用户有实际帮助。（反映用户对 AI 的期望）
+Honesty: 回答是否真实可信。（反映用户对 AI 的期望）
+Safety: 避免敏感或有害内容。（反映用户对 AI 的期望）
+Instruction Compliance: 严格遵循用户指令。（反映用户对 AI 的期望）
+Truthfulness: 内容准确与真实。（反映用户对 AI 的期望）
+Coherence: 表达清晰、逻辑一致。（反映用户对 AI 的期望）
+Complexity: 偏好详细与复杂的信息。
+Conciseness: 偏好简短清晰的回答。
 
 [Content Platform Interest Tags]
-Science Interest: Interest in science topics.
-Education Interest: Concern with education and learning.
-Psychology Interest: Interest in psychology topics.
-Family Concern: Interest in family and parenting.
-Fashion Interest: Interest in fashion topics.
-Art Interest: Engagement with or interest in art.
-Health Concern: Concern with physical health and lifestyle.
-Financial Management Interest: Interest in finance and budgeting.
-Sports Interest: Interest in sports and physical activity.
-Food Interest: Passion for cooking and cuisine.
-Travel Interest: Interest in traveling and exploring new places.
-Music Interest: Interest in music appreciation or creation.
-Literature Interest: Interest in literature and reading.
-Film Interest: Interest in movies and cinema.
-Social Media Activity: Frequency and engagement with social media.
-Tech Interest: Interest in technology and innovation.
-Environmental Concern: Attention to environmental and sustainability issues.
-History Interest: Interest in historical knowledge and topics.
-Political Concern: Interest in political and social issues.
-Religious Interest: Interest in religion and spirituality.
-Gaming Interest: Enjoyment of video games or board games.
-Animal Concern: Concern for animals or pets.
-Emotional Expression: Preference for direct vs. restrained emotional expression.
-Sense of Humor: Preference for humorous or serious communication style.
-Information Density: Preference for detailed vs. concise information.
-Language Style: Preference for formal vs. casual tone.
-Practicality: Preference for practical advice vs. theoretical discussion.
+Science Interest: 科学类话题兴趣。
+Education Interest: 教育与学习相关关注。
+Psychology Interest: 心理学类话题兴趣。
+Family Concern: 家庭与育儿相关关注。
+Fashion Interest: 时尚类话题兴趣。
+Art Interest: 艺术参与或兴趣。
+Health Concern: 健康与生活方式关注。
+Financial Management Interest: 理财与预算兴趣。
+Sports Interest: 运动与体能活动兴趣。
+Food Interest: 对烹饪与美食的热情。
+Travel Interest: 旅行与探索兴趣。
+Music Interest: 音乐欣赏或创作兴趣。
+Literature Interest: 文学与阅读兴趣。
+Film Interest: 电影与影像兴趣。
+Social Media Activity: 社交媒体活跃度。
+Tech Interest: 科技与创新兴趣。
+Environmental Concern: 环境与可持续议题关注。
+History Interest: 历史知识与话题兴趣。
+Political Concern: 政治与社会议题关注。
+Religious Interest: 宗教与精神领域兴趣。
+Gaming Interest: 电子游戏或桌游兴趣。
+Animal Concern: 动物或宠物关怀。
+Emotional Expression: 情绪表达直率 vs. 克制偏好。
+Sense of Humor: 幽默风格偏好 vs. 严肃风格。
+Information Density: 偏好信息密度（详细 vs. 简洁）。
+Language Style: 语言风格（正式 vs. 口语）。
+Practicality: 偏好可操作建议 vs. 理论讨论。
 
-**Task Instructions:**
-1. Review the existing user profile below
-2. Analyze the new conversation for evidence of the 90 dimensions above
-3. Update and integrate the findings into a comprehensive user profile
-4. For each dimension that can be identified, use the format: Dimension ( Level(High/Medium/Low) )
-5. Include brief reasoning for each dimension when possible
-6. Maintain existing insights from the old profile while incorporating new observations
-7. If a dimension cannot be inferred from either the old profile or new conversation, do not include it
+**任务说明：**
+1. 阅读下方已有用户画像；
+2. 基于上述 90 个维度在新对话中寻找证据；
+3. 将发现整合到完整的用户画像中；
+4. 对每个可识别维度，采用格式：维度（Level: High/Medium/Low）；
+5. 尽量给出简短理由（若可定位到时间、人物、场景更佳）；
+6. 在合并时保留旧画像中的有效洞见；
+7. 若无法从旧画像或新对话推断某维度，请不要包含该维度。
 
-**Existing User Profile:**
+**已有用户画像：**
 {existing_user_profile}
 
-**Latest User-AI Conversation:**
+**最新用户-AI 对话：**
 {conversation}
 
-**Updated User Profile:**
-Please provide the comprehensive updated user profile below, combining insights from both the existing profile and new conversation:"""
+**更新后的用户画像：**
+请在下方提供综合后的完整用户画像，需同时整合旧画像与新对话的洞见："""
 
 # Prompt for knowledge extraction (NEW)
-KNOWLEDGE_EXTRACTION_SYSTEM_PROMPT = """You are a knowledge extraction assistant. Your task is to extract user private data and assistant knowledge from conversations.
+KNOWLEDGE_EXTRACTION_SYSTEM_PROMPT = """你是一名知识抽取助手。你的任务是从对话中抽取“用户私有数据”与“助手知识”。
 
-Focus on:
-1. User private data: personal information, preferences, or private facts about the user
-2. Assistant knowledge: explicit statements about what the assistant did, provided, or demonstrated
+关注以下两类信息：
+1. 用户私有数据：用户的个人信息、偏好或私密事实；
+2. 助手知识：助手展示过的行为、提供过的内容或体现出的能力；
 
-Be extremely concise and factual in your extractions. Use the shortest possible phrases.
+抽取时务必简洁客观，使用尽可能短的短语。
 """
 
-KNOWLEDGE_EXTRACTION_USER_PROMPT = """Please extract user private data and assistant knowledge from the latest user-AI conversation below.
+KNOWLEDGE_EXTRACTION_USER_PROMPT = """请从下方最新的用户-AI 对话中，抽取“用户私有数据”与“助手知识”。
 
 Latest User-AI Conversation:
 {conversation}
 
-【User Private Data】
-Extract personal information about the user. Be extremely concise - use shortest possible phrases:
-- [Brief fact]: [Minimal context(Including entities and time)]
-- [Brief fact]: [Minimal context(Including entities and time)]
-- (If no private data found, write "None")
+【用户私有数据】
+抽取与用户相关的个人信息；务必极简：
+- [简要事实]： [最小上下文（含实体与时间）]
+- [简要事实]： [最小上下文（含实体与时间）]
+- （若未发现，写 "None"）
 
-【Assistant Knowledge】
-Extract what the assistant demonstrated. Use format "Assistant [action] at [time]". Be extremely brief:
-- Assistant [brief action] at [time/context]
-- Assistant [brief capability] during [brief context]
-- (If no assistant knowledge found, write "None")
+【助手知识】
+抽取助手体现出的行为或能力；采用“Assistant [动作] at [时间]”格式，尽量简短：
+- Assistant [简要动作] at [时间/场景]
+- Assistant [简要能力] during [简要场景]
+- （若未发现，写 "None"）
 """
 
 # Prompt for updating user profile (from utils.py, gpt_update_profile)
-UPDATE_PROFILE_SYSTEM_PROMPT = "You are an expert in merging and updating user profiles. Integrate the new information into the old profile, maintaining consistency and improving the overall understanding of the user. Avoid redundancy. The new analysis is based on specific dimensions, try to incorporate these insights meaningfully."
-UPDATE_PROFILE_USER_PROMPT = "Please update the following user profile based on the new analysis. If the old profile is empty or \"None\", create a new one based on the new analysis.\n\nOld User Profile:\n{old_profile}\n\nNew Analysis Data:\n{new_analysis}\n\nUpdated User Profile:"
+UPDATE_PROFILE_SYSTEM_PROMPT = "你是用户画像的合并与更新专家。请将新的分析信息整合进旧画像，保持一致性并提升整体理解，避免冗余。新的分析来自特定维度，请有意义地纳入。"
+UPDATE_PROFILE_USER_PROMPT = "请基于新的分析更新以下用户画像。若旧画像为空或为 \"None\"，则基于新分析创建一份新的。\n\n旧用户画像：\n{old_profile}\n\n新分析数据：\n{new_analysis}\n\n更新后的用户画像："
 
 # Prompt for extracting theme (from utils.py, gpt_extract_theme)
-EXTRACT_THEME_SYSTEM_PROMPT = "You are an expert in extracting the main theme from a text. Provide a concise theme."
-EXTRACT_THEME_USER_PROMPT = "Please extract the main theme from the following text:\n{answer_text}\n\nTheme:"
+EXTRACT_THEME_SYSTEM_PROMPT = "你是文本主题提取专家。请给出精炼的主题。"
+EXTRACT_THEME_USER_PROMPT = "请从以下文本中提取主要主题：\n{answer_text}\n\n主题："
 
 
 
 # Prompt for conversation continuity check (from dynamic_update.py, _is_conversation_continuing)
-CONTINUITY_CHECK_SYSTEM_PROMPT = "You are a conversation continuity detector. Return ONLY 'true' or 'false'."
-CONTINUITY_CHECK_USER_PROMPT = ("Determine if these two conversation pages are continuous (true continuation without topic shift).\n"
-                                "Return ONLY \"true\" or \"false\".\n\n"
-                                "Previous Page:\nUser: {prev_user}\nAssistant: {prev_agent}\n\n"
-                                "Current Page:\nUser: {curr_user}\nAssistant: {curr_agent}\n\n"
-                                "Continuous?")
+CONTINUITY_CHECK_SYSTEM_PROMPT = "你是对话连续性判定器。仅返回 'true' 或 'false'。"
+CONTINUITY_CHECK_USER_PROMPT = ("判断以下两页对话是否为同一话题的连续（无话题转移）。\n"
+                                "仅返回 \"true\" 或 \"false\"。\n\n"
+                                "上一页：\nUser: {prev_user}\nAssistant: {prev_agent}\n\n"
+                                "当前页：\nUser: {curr_user}\nAssistant: {curr_agent}\n\n"
+                                "是否连续？")
 
 # Prompt for generating meta info (from dynamic_update.py, _generate_meta_info)
-META_INFO_SYSTEM_PROMPT = ("""You are a conversation meta-summary updater. Your task is to:
-1. Preserve relevant context from previous meta-summary
-2. Integrate new information from current dialogue
-3. Output ONLY the updated summary (no explanations)""" )
-META_INFO_USER_PROMPT = ("""Update the conversation meta-summary by incorporating the new dialogue while maintaining continuity.
+META_INFO_SYSTEM_PROMPT = ("""你是对话元摘要的更新器。你的任务：
+1. 保留上一版元摘要中的相关上下文；
+2. 融入当前对话中的新信息；
+3. 仅输出更新后的摘要（不需要解释）。""" )
+META_INFO_USER_PROMPT = ("""请在保持连续性的前提下，用当前对话更新元摘要。
         
-    Guidelines:
-    1. Start from the previous meta-summary (if exists)
-    2. Add/update information based on the new dialogue
-    3. Keep it concise (1-2 sentences max)
-    4. Maintain context coherence
-
-    Previous Meta-summary: {last_meta}
-    New Dialogue:
+    指南：
+    1. 以上一版元摘要为起点（如存在）；
+    2. 根据新对话进行补充/更新；
+    3. 保持简洁（最多 1-2 句）；
+    4. 保持上下文一致。
+    
+    之前的元摘要：{last_meta}
+    新的对话：
     {new_dialogue}
-
-    Updated Meta-summary:""") 
+    
+    更新后的元摘要：""")

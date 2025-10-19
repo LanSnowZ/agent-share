@@ -1,128 +1,126 @@
 """
-Centralized prompts for LLM interactions, following OpenAI API format.
-Each prompt is designed for a separate API call to ensure independence.
+集中管理与 LLM 交互使用的提示词，遵循 OpenAI API 的消息格式。
+每个提示词面向独立的 API 调用，互不依赖。
 """
 
-# 1. Quality Check Prompt
-QC_SYSTEM_PROMPT = """You are a meticulous assistant evaluating a conversation transcript to determine if it contains reusable, in-depth, and focused experience.
+# 1. 质量评估提示
+QC_SYSTEM_PROMPT = """你是一名严谨的助手，需要评估一段对话是否包含可复用、足够深入且聚焦的经验。
 
-**Evaluation Criteria (score 0.0 to 3.0):**
-1.  **reusability**: Does it summarize a transferable method, template, or pitfall list?
-2.  **depth**: Does it contain non-superficial inference, trade-offs, or boundary conditions?
-3.  **focus**: Is it centered around a single core task?
+**评估维度（0.0 - 3.0）**：
+1.  **reusability（可复用性）**：是否沉淀了可迁移的方法、模板或避坑清单？
+2.  **depth（深度）**：是否包含非表面的推理、权衡或边界条件？
+3.  **focus（聚焦度）**：是否围绕单一核心任务展开？
 
-**Inclusion Logic**: A conversation is included if `reusability >= 2.0`, `depth >= 2.0`, and `focus >= 1.5`.
+**纳入规则**：当 `reusability >= 2.0` 且 `depth >= 2.0` 且 `focus >= 1.5` 时判定为纳入。
 
-**Output Schema**: Respond with a single JSON object. Do not add any text before or after it.
-- For inclusion: `{"include": true, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
-- For exclusion: `{"include": false, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
+**输出格式**：仅输出一个 JSON 对象，前后不得附加其它文本。
+- 纳入：`{"include": true, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
+- 不纳入：`{"include": false, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
 """
 
-# 2. COT Extraction Prompt
-COT_EXTRACTION_SYSTEM_PROMPT = """You are an expert in summarizing technical discussions.
-Analyze the following text and extract its core reasoning process into a concise, structured outline (Chain-of-Thought style).
-Focus on reusable steps. Be concise and focus on the key points.
+# 2. COT 抽取提示
+COT_EXTRACTION_SYSTEM_PROMPT = """你是技术讨论总结专家。
+请从以下文本中提炼核心推理过程，产出简洁的结构化大纲（Chain-of-Thought 风格）。
+强调可复用步骤，保持精炼，聚焦关键点。
 
-**Output Schema**: Respond with a single JSON object containing the summary.
-`{"cot": "<string: The structured COT outline>"}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"cot": "<string: 结构化的 COT 大纲>"}`
 """
 
-# 3. KG Extraction Prompt
-KG_EXTRACTION_SYSTEM_PROMPT = """You are a knowledge graph expert.
-Analyze the following text and extract meaningful entities and their relationships as knowledge graph triples.
-Focus on technical entities, tools, and concepts.
+# 3. KG 抽取提示
+KG_EXTRACTION_SYSTEM_PROMPT = """你是知识图谱专家。
+请从以下文本中抽取有意义的实体与关系，并以三元组表示。
+聚焦技术实体、工具与概念。
 
-**Output Schema**: Respond with a single JSON object containing a list of triples.
-`{"kg": [{"head": "<entity>", "relation": "<relationship>", "tail": "<entity>"}]}`
+**输出格式**：仅输出一个 JSON 对象，包含三元组列表。
+`{"kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
 """
 
-# 4. Query Extraction Prompt
-QUERY_EXTRACTION_SYSTEM_PROMPT = """You are an expert in search intent.
-Analyze the following text and formulate a single, focused question that this conversation snippet directly answers.
-The question should represent a clear user query.
+# 4. 查询抽取提示
+QUERY_EXTRACTION_SYSTEM_PROMPT = """你是搜索意图理解专家。
+请分析以下文本，归纳出一个该片段能够直接回答的、单一且聚焦的问题。
+该问题需能代表清晰的用户查询。
 
-**Output Schema**: Respond with a single JSON object containing the query.
-`{"query": "<string: The focused user query>"}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"query": "<string: 聚焦的用户查询>"}`
 """
 
 
 def get_user_prompt(text: str) -> str:
-    """Formats the user prompt for all stages, providing the raw text."""
+    """为各阶段统一格式化用户内容。"""
     return f"""
-Conversation Text to Analyze:
+待分析的对话文本：
 ---
 {text}
 ---
 """
 
-# 5. Query Matching Prompt
-QUERY_MATCHING_SYSTEM_PROMPT = """You are an AI assistant specializing in semantic query matching.
-Your task is to determine if a set of candidate queries are asking the exact same question as a base query.
-The queries are considered a match if they are semantically identical, focusing on the same core intent and subject matter, even if the wording is different.
+# 5. 查询语义匹配提示
+QUERY_MATCHING_SYSTEM_PROMPT = """你是一名语义查询匹配助手。
+需要判断一组候选查询是否与基准查询在语义上完全一致（核心意图与主题一致，措辞可不同）。
 
-**Output Schema**: Respond with a single JSON object.
-`{"matches": [<boolean: true if a candidate query matches the base query, false otherwise>]}`
-The list of booleans must be in the same order as the candidate queries provided in the user prompt.
+**输出格式**：仅输出一个 JSON 对象。
+`{"matches": [<boolean: 若候选与基准一致则为 true，否则为 false>]}`
+布尔数组顺序必须与输入的候选查询顺序一致。
 """
 
 
 def get_query_matching_prompt(base_query: str, candidate_queries: list[str]) -> str:
     candidates_str = "\n".join(f"- {q}" for q in candidate_queries)
     return f"""
-Base Query:
+基准查询：
 ---
 {base_query}
 ---
 
-Candidate Queries:
+候选查询：
 ---
 {candidates_str}
 ---
 """
 
 
-# 6. CoT Merging Prompt
-COT_MERGING_SYSTEM_PROMPT = """You are an AI assistant that merges two Chain-of-Thought (CoT) outlines into a single, comprehensive, and non-redundant CoT.
-Combine the steps and reasoning from both CoTs, keeping the logical flow. Eliminate duplicate information and synthesize related points.
+# 6. CoT 合并提示
+COT_MERGING_SYSTEM_PROMPT = """你是一名将两份 Chain-of-Thought（COT）大纲合并为单一、完整且无冗余版本的助手。
+请合并两份 COT 的步骤与推理，保持逻辑顺序，去重并综合相关点。
 
-**Output Schema**: Respond with a single JSON object.
-`{"merged_cot": "<string: The new, unified CoT outline>"}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"merged_cot": "<string: 新的统一 COT 大纲>"}`
 """
 
 
 def get_cot_merging_prompt(cot1: str, cot2: str) -> str:
     return f"""
-CoT 1:
+CoT 1：
 ---
 {cot1}
 ---
 
-CoT 2:
+CoT 2：
 ---
 {cot2}
 ---
 """
 
 
-# 7. KG Merging Prompt
-KG_MERGING_SYSTEM_PROMPT = """You are a Knowledge Graph expert.
-Your task is to merge two sets of knowledge graph triples into a single, consistent graph.
-Eliminate duplicate triples and resolve any conflicting information by choosing the most plausible relationship.
+# 7. KG 合并提示
+KG_MERGING_SYSTEM_PROMPT = """你是知识图谱专家。
+请将两组三元组合并为单一、一致的知识图谱，消除重复并在冲突时选择更合理的关系。
 
-**Output Schema**: Respond with a single JSON object containing the merged list of triples.
-`{"merged_kg": [{"head": "<entity>", "relation": "<relationship>", "tail": "<entity>"}]}`
+**输出格式**：仅输出一个 JSON 对象，包含合并后的三元组列表。
+`{"merged_kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
 """
 
 
 def get_kg_merging_prompt(kg1: str, kg2: str) -> str:
-    """`kg1` and `kg2` should be JSON strings."""
+    """`kg1` 与 `kg2` 传入 JSON 字符串。"""
     return f"""
-KG 1:
+KG 1：
 ---
 {kg1}
 ---
 
-KG 2:
+KG 2：
 ---
 {kg2}
 ---

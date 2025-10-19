@@ -13,90 +13,89 @@ from config import Config
 from models import QCResult, KGEdge
 
 # 直接定义 prompts，避免模块导入冲突
-QC_SYSTEM_PROMPT = """You are a meticulous assistant evaluating a conversation transcript to determine if it contains reusable, in-depth, and focused experience.
+QC_SYSTEM_PROMPT = """你是一名严谨的助手，需要评估一段对话是否包含可复用、足够深入且聚焦的经验。
 
-**Evaluation Criteria (score 0.0 to 3.0):**
-1.  **reusability**: Does it summarize a transferable method, template, or pitfall list?
-2.  **depth**: Does it contain non-superficial inference, trade-offs, or boundary conditions?
-3.  **focus**: Is it centered around a single core task?
+**评估维度（0.0 - 3.0）**：
+1.  **reusability（可复用性）**：是否沉淀了可迁移的方法、模板或避坑清单？
+2.  **depth（深度）**：是否包含非表面的推理、权衡或边界条件？
+3.  **focus（聚焦度）**：是否围绕单一核心任务展开？
 
-**Inclusion Logic**: A conversation is included if `reusability >= 2.0`, `depth >= 2.0`, and `focus >= 1.5`.
+**纳入规则**：当 `reusability >= 2.0` 且 `depth >= 2.0` 且 `focus >= 1.5` 时判定为纳入。
 
-**Output Schema**: Respond with a single JSON object. Do not add any text before or after it.
-- For inclusion: `{"include": true, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
-- For exclusion: `{"include": false, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
+**输出格式**：仅输出一个 JSON 对象，前后不得附加其它文本。
+- 纳入：`{"include": true, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
+- 不纳入：`{"include": false, "scores": {"reusability": <float>, "depth": <float>, "focus": <float>}}`
 """
 
-COT_EXTRACTION_SYSTEM_PROMPT = """You are an expert in summarizing technical discussions.
-Analyze the following text and extract its core reasoning process into a concise, structured outline (Chain-of-Thought style).
-Focus on reusable steps. Be concise and focus on the key points.
+COT_EXTRACTION_SYSTEM_PROMPT = """你是技术讨论总结专家。
+请从以下文本中提炼核心推理过程，产出简洁的结构化大纲（Chain-of-Thought 风格）。
+强调可复用步骤，保持精炼，聚焦关键点。
 
-**Output Schema**: Respond with a single JSON object containing the summary.
-`{"cot": "<string: The structured COT outline>"}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"cot": "<string: 结构化的 COT 大纲>"}`
 """
 
-KG_EXTRACTION_SYSTEM_PROMPT = """You are a knowledge graph expert.
-Analyze the following text and extract meaningful entities and their relationships as knowledge graph triples.
-Focus on technical entities, tools, and concepts.
+KG_EXTRACTION_SYSTEM_PROMPT = """你是知识图谱专家。
+请从以下文本中抽取有意义的实体与关系，并以三元组表示。
+聚焦技术实体、工具与概念。
 
-**Output Schema**: Respond with a single JSON object containing a list of triples.
-`{"kg": [{"head": "<entity>", "relation": "<relationship>", "tail": "<entity>"}]}`
+**输出格式**：仅输出一个 JSON 对象，包含三元组列表。
+`{"kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
 """
 
-QUERY_EXTRACTION_SYSTEM_PROMPT = """You are a query formulation expert.
-Analyze the following text and extract the core question or task it addresses.
-The query should be concise and capture the main intent.
+QUERY_EXTRACTION_SYSTEM_PROMPT = """你是查询归纳专家。
+请分析以下文本，抽取其所针对的核心问题（或任务）。
+问题需简洁，能概括主要意图。
 
-**Output Schema**: Respond with a single JSON object.
-`{"query": "<string: The extracted query>"}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"query": "<string: 抽取出的查询>"}`
 """
 
-QUERY_MATCHING_SYSTEM_PROMPT = """You are a query matching expert.
-Determine which candidate queries semantically match the base query.
-Return a boolean list indicating matches.
+QUERY_MATCHING_SYSTEM_PROMPT = """你是查询语义匹配专家。
+判断哪些候选查询在语义上与基准查询一致，并返回布尔列表。
 
-**Output Schema**: Respond with a single JSON object.
+**输出格式**：仅输出一个 JSON 对象。
 `{"matches": [<bool>, <bool>, ...]}`
 """
 
 # Decide whether memories' focus_queries are genuinely useful to answer the user's current query (batch version)
-FOCUS_USEFULNESS_BATCH_SYSTEM_PROMPT = """You are an expert assistant deciding which memories' focus_queries would concretely help answer the user's current question.
+FOCUS_USEFULNESS_BATCH_SYSTEM_PROMPT = """你是一名助手，判断哪些记忆的 focus_query 能切实帮助回答当前用户问题。
 
-Rules:
-- For each focus_query, mark useful=true only if it directly addresses the same task or resolves a key subproblem of the user's question.
-- If a focus_query is generic, unrelated, or would not improve the answer quality, mark useful=false.
-- Be strict. Prefer false on weak or tangential matches.
+规则：
+- 仅当某个 focus_query 直接指向同一任务，或可解决用户问题的关键子问题时，标记 useful=true；
+- 若其泛泛而谈、无关或无法提升答案质量，则标记 useful=false；
+- 请从严判定，对边缘匹配倾向于给出 false。
 
-Output JSON only (list of booleans in the same order as the input focus_queries):
+仅输出 JSON（顺序与输入 focus_queries 保持一致）：
 {"useful": [<boolean>, <boolean>, ...]}
 """
 
-COT_MERGING_SYSTEM_PROMPT = """You are an expert in merging structured reasoning.
-Merge the following two Chain-of-Thought summaries into one coherent, comprehensive summary.
+COT_MERGING_SYSTEM_PROMPT = """你是结构化推理合并专家。
+请将以下两份 Chain-of-Thought 总结合并为一份连贯、完整的总结。
 
-**Output Schema**: Respond with a single JSON object.
-`{"merged_cot": "<string: The merged summary>"}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"merged_cot": "<string: 合并后的总结>"}`
 """
 
-KG_MERGING_SYSTEM_PROMPT = """You are a knowledge graph merging expert.
-Merge the following two knowledge graph lists, removing duplicates and consolidating information.
+KG_MERGING_SYSTEM_PROMPT = """你是知识图谱合并专家。
+请将以下两份知识图谱列表进行合并，去重并整合信息。
 
-**Output Schema**: Respond with a single JSON object.
-`{"merged_kg": [{"head": "<entity>", "relation": "<relationship>", "tail": "<entity>"}]}`
+**输出格式**：仅输出一个 JSON 对象。
+`{"merged_kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
 """
 
 def get_user_prompt(text: str) -> str:
-    return f"**Text to Evaluate:**\n{text}"
+    return f"**待评估文本：**\n{text}"
 
 def get_query_matching_prompt(base_query: str, candidate_queries: List[str]) -> str:
     candidates = "\n".join([f"{i+1}. {q}" for i, q in enumerate(candidate_queries)])
-    return f"**Base Query:**\n{base_query}\n\n**Candidate Queries:**\n{candidates}\n\nWhich candidates match the base query?"
+    return f"**基准查询：**\n{base_query}\n\n**候选查询：**\n{candidates}\n\n哪些候选与基准查询匹配？"
 
 def get_cot_merging_prompt(cot1: str, cot2: str) -> str:
-    return f"**COT 1:**\n{cot1}\n\n**COT 2:**\n{cot2}\n\nMerge these summaries:"
+    return f"**COT 1：**\n{cot1}\n\n**COT 2：**\n{cot2}\n\n请合并以上两份总结："
 
 def get_kg_merging_prompt(kg1: List[Dict], kg2: List[Dict]) -> str:
-    return f"**KG 1:**\n{json.dumps(kg1)}\n\n**KG 2:**\n{json.dumps(kg2)}\n\nMerge these knowledge graphs:"
+    return f"**KG 1：**\n{json.dumps(kg1)}\n\n**KG 2：**\n{json.dumps(kg2)}\n\n请合并上述知识图谱："
 
 
 class LLMQC:

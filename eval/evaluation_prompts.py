@@ -1,135 +1,131 @@
 # -*- coding: utf-8 -*-
 """
-Prompts used for the end-to-end evaluation script.
+端到端评测脚本使用的提示词。
 """
 
 def get_rag_answer_prompt(user_query: str, retrieved_context: str, user_profile: str) -> str:
     """
-    Creates the prompt for the RAG (with context) condition.
-    Includes the user's profile to personalize the response.
+    生成用于 RAG（带上下文）条件的提示词，包含用户画像以实现个性化回答。
     """
-    return f"""You are a helpful AI assistant. Your task is to answer the user's question based on the provided context.
-The context is retrieved from a shared knowledge base of past conversations.
-Synthesize the information from the context to provide a comprehensive and accurate answer.
-If the context is not relevant, ignore it and answer based on your own knowledge.
+    return f"""你是一名乐于助人的 AI 助手。请基于提供的上下文回答用户的问题。
+上下文来源于以往对话构成的共享知识库。
+请综合上下文信息，给出全面且准确的回答。
+若上下文不相关，请忽略上下文并基于自身知识作答。
 
-**USER PROFILE:**
+**用户画像：**
 ---
 {user_profile}
 ---
 
-**CONTEXT FROM SHARED MEMORY:**
+**共享记忆上下文：**
 ---
 {retrieved_context}
 ---
 
-**USER'S QUESTION:**
+**用户问题：**
 ---
 {user_query}
 ---
 
-Important: Tailor your answer to the user's profile, expertise level, and professional background.
-Your response should be relevant and appropriate for this specific user.
+重要：请根据用户画像、专业背景与水平调整表达。
+回答需与该用户高度相关、恰当。
 
-Your Answer:
+你的回答：
 """
 
 def get_fusion_rag_prompt(user_query: str, shared_memory_context: str, personal_memory_context: str, user_profile: str) -> str:
     """
-    Creates the prompt for the Fusion RAG condition with both shared and personal memory.
-    Includes the user's profile to personalize the response.
+    生成用于 Fusion RAG（共享与个人记忆融合）条件的提示词，包含用户画像以实现个性化回答。
     """
-    return f"""You are a helpful AI assistant. Your task is to answer the user's question based on the provided context from two memory sources.
-The context is retrieved from both shared knowledge base and your personal memory of past conversations.
-Synthesize the information from both sources to provide a comprehensive and accurate answer.
-If the context is not relevant, ignore it and answer based on your own knowledge.
+    return f"""你是一名乐于助人的 AI 助手。请基于两类记忆源提供的上下文回答用户的问题。
+上下文来自共享知识库与你对过往对话的个人记忆。
+请综合两类来源信息，给出全面且准确的回答。
+若上下文不相关，请忽略上下文并基于自身知识作答。
 
-**USER PROFILE:**
+**用户画像：**
 ---
 {user_profile}
 ---
 
-**CONTEXT FROM SHARED MEMORY:**
+**共享记忆上下文：**
 ---
 {shared_memory_context}
 ---
 
-**CONTEXT FROM PERSONAL MEMORY:**
+**个人记忆上下文：**
 ---
 {personal_memory_context}
 ---
 
-**USER'S QUESTION:**
+**用户问题：**
 ---
 {user_query}
 ---
 
-Important: Tailor your answer to the user's profile, expertise level, and professional background.
-Use both shared knowledge and personal context to provide a response that is relevant and appropriate for this specific user.
-If there are conflicts between shared and personal memory, prioritize the information that is most relevant to the user's current question.
+重要：请结合用户画像、专业水平与背景定制回答。
+需同时合理利用共享知识与个人记忆；若二者冲突，请优先采用与当前问题最相关的信息。
 
-Your Answer:
+你的回答：
 """
 
 def get_baseline_answer_prompt(user_query: str, user_profile: str) -> str:
     """
-    Creates the prompt for the baseline (without context) condition.
-    Includes the user's profile to personalize the response.
+    生成用于基线条件（无上下文）的提示词，包含用户画像以实现个性化回答。
     """
-    return f"""Your task is to answer the user's question based on your own knowledge.
+    return f"""你的任务是基于自身知识回答用户问题。
 
-**USER PROFILE:**
+**用户画像：**
 ---
 {user_profile}
 ---
 
-**USER'S QUESTION:**
+**用户问题：**
 ---
 {user_query}
 ---
 
-Important: Tailor your answer to the user's profile, expertise level, and professional background.
-Your response should be relevant and appropriate for this specific user.
+重要：请根据用户画像、专业水平与背景进行个性化作答。
+回答需与该用户高度相关、恰当。
 
-Your Answer:
+你的回答：
 """
 
 def get_judge_prompt(user_query: str, user_profile: str, answer_a: str, answer_b: str) -> str:
     """
-    Creates a prompt for the judge model to provide scores and a justification, with no ties allowed.
+    生成用于评审模型的提示词：比较两份答案并给出分数与理由，且不允许平局。
     """
-    return f"""You are an expert evaluator. Compare the two answers and determine which is better. You cannot declare a tie.
+    return f"""你是一名评测专家。比较两份回答并判断哪一份更好。不得判定平局。
 
-Evaluate based on:
-- **Personalization**: Is the answer suited to the user's background and expertise?
-- **Follow-up Question Addressing**: Does the answer anticipate potential follow-up questions?
-- **Depth and Insight**: Does the answer provide valuable insights?
+评估依据：
+- **个性化**：回答是否贴合用户背景与专业水平？
+- **追问预见性**：回答是否预见并覆盖潜在追问？
+- **深度与洞见**：回答是否提供有价值的洞见？
 
-**IMPORTANT**: Scores for Answer A and Answer B must be different.
+**重要**：A 与 B 的分数必须不同。
 
-**USER PROFILE:**
+**用户画像：**
 ---
 {user_profile}
 ---
 
-**USER'S QUESTION:**
+**用户问题：**
 ---
 {user_query}
 ---
 
-**ANSWER A:**
+**答案 A：**
 ---
 {answer_a}
 ---
 
-**ANSWER B:**
+**答案 B：**
 ---
 {answer_b}
 ---
 
-**REQUIRED OUTPUT FORMAT (follow exactly):**
+**必须严格遵循的输出格式：**
 
-Justification: Answer xx provides xxxx.
+Justification: 说明为何某答案更好。
 Score A: 
 Score B: 
-Winner: xx"""
+Winner: A 或 B"""
