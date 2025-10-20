@@ -4,6 +4,7 @@ Zero-train multi-user shared memory with A→C selection (A→B→C preserved). 
 
 ## Quickstart
 
+Using python 3.12.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

@@ -1,0 +1,43 @@
+# Directory
+.vscode/
+.idea/
+__pycache__/
+__marimo__/
+*.ipynb_checkpoints/
+log/
+.venv/
+
+# local
+/local/
+/output/
+/checkpoints/
+data/
+
+# Build
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# File
+.DS_Store
+local_test.py
+*.log
+*.pyc
+*.ipynb
+
+# Claude code
+CLAUDE.md
+.claude/
+.claude-history/
