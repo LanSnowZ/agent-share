@@ -1,0 +1,37 @@
+{
+  "id": "chat_1761029938130",
+  "username": "test",
+  "model": "gpt-5-chat-latest",
+  "shared_memory_enabled": false,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-21 14:58:59",
+  "updated_at": "2025-10-21 15:01:02",
+  "messages": [
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-21 14:58:59"
+    },
+    {
+      "type": "assistant",
+      "content": "你好呀～😊  \n很高兴再次见到你！请问你想聊点什么？是想继续说“132”的话题，还是有别的问题需要我帮忙？",
+      "timestamp": "2025-10-21 15:01:02"
+    },
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-21 14:59:12"
+    },
+    {
+      "type": "user",
+      "content": "132",
+      "timestamp": "2025-10-21 14:59:20"
+    },
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-21 15:00:55"
+    }
+  ],
+  "title": "你好"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "chat_1761040575614",
+  "username": "test",
+  "model": "gpt-4o-mini",
+  "shared_memory_enabled": true,
+  "personal_memory_enabled": true,
+  "created_at": "2025-10-21 17:56:15",
+  "updated_at": "2025-10-22 09:39:42",
+  "messages": [
+    {
+      "type": "user",
+      "content": "123",
+      "timestamp": "2025-10-21 17:56:15"
+    },
+    {
+      "type": "assistant",
+      "content": "It seems like your question is incomplete or unclear. Could you please provide more details or clarify what you would like to know?",
+      "timestamp": "2025-10-21 17:56:17",
+      "shared_memory_enabled": false
+    },
+    {
+      "type": "user",
+      "content": "456",
+      "timestamp": "2025-10-21 17:56:31"
+    },
+    {
+      "type": "assistant",
+      "content": "看起来你的问题仍然是不完整的，数字 \"456\" 让我有些困惑。你能否提供更多的背景信息或详细说明你想了解的内容？这样我才能更好地帮助你！",
+      "timestamp": "2025-10-21 17:56:33",
+      "shared_memory_enabled": true
+    },
+    {
+      "type": "user",
+      "content": "123",
+      "timestamp": "2025-10-21 17:56:40"
+    },
+    {
+      "type": "assistant",
+      "content": "看起来你再次输入了 \"123\"，但这并没有提供足够的信息。你能否告诉我你想了解什么，或者有什么具体的问题吗？这样我才能更好地帮助你！",
+      "timestamp": "2025-10-21 17:56:41",
+      "shared_memory_enabled": false
+    },
+    {
+      "type": "user",
+      "content": "132",
+      "timestamp": "2025-10-22 09:39:39"
+    },
+    {
+      "type": "assistant",
+      "content": "看起来你再次输入了一个数字 \"132\"，但这并没有提供足够的信息让我理解你的问题。请你提供更多的背景信息或细节，这样我才能更好地帮助你！你想询问关于某个特定主题的问题吗？",
+      "timestamp": "2025-10-22 09:39:42",
+      "shared_memory_enabled": true
+    }
+  ],
+  "title": "123"
+}

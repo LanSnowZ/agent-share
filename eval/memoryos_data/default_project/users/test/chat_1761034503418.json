@@ -1,0 +1,52 @@
+{
+  "id": "chat_1761034503418",
+  "username": "test",
+  "model": "gpt-5-chat-latest",
+  "shared_memory_enabled": false,
+  "personal_memory_enabled": false,
+  "created_at": "2025-10-21 16:15:04",
+  "updated_at": "2025-10-21 16:49:30",
+  "messages": [
+    {
+      "type": "user",
+      "content": "123",
+      "timestamp": "2025-10-21 16:15:04"
+    },
+    {
+      "type": "assistant",
+      "content": "Hi there! Could you please clarify what you’d like help with regarding “123”? Are you asking for an explanation, calculation, or something else?",
+      "timestamp": "2025-10-21 16:15:05"
+    },
+    {
+      "type": "user",
+      "content": "你好",
+      "timestamp": "2025-10-21 16:41:35"
+    },
+    {
+      "type": "assistant",
+      "content": "你好！👋 很高兴见到你～请问今天想聊点什么，或者需要我帮你做些什么吗？",
+      "timestamp": "2025-10-21 16:41:36"
+    },
+    {
+      "type": "user",
+      "content": "132",
+      "timestamp": "2025-10-21 16:49:21"
+    },
+    {
+      "type": "assistant",
+      "content": "你好呀～😊 你说的“132”是想让我帮你计算点什么，还是它代表某个代码、编号、或者别的意思呢？请稍微具体说明一下，我好帮你更准确地回答。",
+      "timestamp": "2025-10-21 16:49:23"
+    },
+    {
+      "type": "user",
+      "content": "456",
+      "timestamp": "2025-10-21 16:49:28"
+    },
+    {
+      "type": "assistant",
+      "content": "你好呀～😊 你说的“456”是想让我帮你计算、解释，还是它代表某个特定的东西（比如编号、代码、或者题目中的数据）呢？  \n能再具体说说你的需求吗？这样我可以更准确地帮你。",
+      "timestamp": "2025-10-21 16:49:30"
+    }
+  ],
+  "title": "123"
+}
