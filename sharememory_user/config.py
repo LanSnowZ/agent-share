@@ -13,7 +13,7 @@ class Config:
     embed_use_hf: bool = os.environ.get("SMU_EMBED_USE_HF", "1") == "1"
     embed_model_name: str = os.environ.get(
         "SMU_EMBED_MODEL",
-        "memoryos_demo_v5/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+        "/root/autodl-tmp/embedding_cache/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
     )
     embed_dimension: int = int(os.environ.get("SMU_EMBED_DIM", "1024"))
     embed_use_fp16: bool = os.environ.get("SMU_EMBED_USE_FP16", "1") == "1"

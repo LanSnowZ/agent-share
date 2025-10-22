@@ -214,6 +214,7 @@ class RetrievePipeline:
 
     def build_prompt_blocks(self, items: List[Dict[str, any]]) -> str:
         parts: List[str] = []
+        selected_ids: List[str] = []
         for i, it in enumerate(items, start=1):
             mem = it["memory"]
             cot = mem.get("cot_text", "")
@@ -228,6 +229,8 @@ class RetrievePipeline:
             print(f"  - Type of mem: {type(mem)}")
             print(f"  - Keys in mem: {list(mem.keys())}")
             print("##############################################")
+            # Record selected memory id for final summary print
+            selected_ids.append(mem.get('id', 'NO_ID_FOUND'))
             # Get the static profile of the memory creator
             creator_profile = ""
             if source_user_id:
@@ -257,4 +260,11 @@ class RetrievePipeline:
                     rel = e.get("relation", "rel")
                     tail = e.get("tail", "?")
                     f.write(f"- ({head}, {rel}, {tail})\n")
+        # Final concise log of memory IDs added to the prompt
+        if selected_ids:
+            try:
+                print(f"✅ 最终加入提示词的共享记忆ID: {', '.join(selected_ids)}")
+            except Exception:
+                # Fallback to avoid any unexpected printing errors
+                print("✅ 最终加入提示词的共享记忆ID:", selected_ids)
         return "\n".join(parts)

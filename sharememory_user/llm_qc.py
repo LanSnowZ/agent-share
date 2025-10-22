@@ -84,6 +84,14 @@ KG_MERGING_SYSTEM_PROMPT = """你是知识图谱合并专家。
 `{"merged_kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
 """
 
+QUERY_MERGING_SYSTEM_PROMPT = """你是查询合并专家。
+请将以下两个 focus_query 合并为一个新的、更全面的查询描述。
+新的查询应该涵盖两个查询的核心意图，去重并保持简洁。
+
+**输出格式**：仅输出一个 JSON 对象。
+`{"merged_query": "<string: 合并后的查询>"}`
+"""
+
 def get_user_prompt(text: str) -> str:
     return f"**待评估文本：**\n{text}"
 
@@ -96,6 +104,9 @@ def get_cot_merging_prompt(cot1: str, cot2: str) -> str:
 
 def get_kg_merging_prompt(kg1: List[Dict], kg2: List[Dict]) -> str:
     return f"**KG 1：**\n{json.dumps(kg1)}\n\n**KG 2：**\n{json.dumps(kg2)}\n\n请合并上述知识图谱："
+
+def get_query_merging_prompt(query1: str, query2: str) -> str:
+    return f"**Query 1：**\n{query1}\n\n**Query 2：**\n{query2}\n\n请合并以上两个查询："
 
 
 class LLMQC:
@@ -167,6 +178,57 @@ class LLMQC:
 
         # Fallback to heuristic for any failure or if provider is "none"
         return self._run_heuristic(text, source_user_id)
+
+    def extract_query_from_user_questions(self, text: str) -> str:
+        """Extracts a concise query from user-only questions/turns within the dialog text.
+
+        Heuristics to isolate user turns:
+        - Prefer lines prefixed by role markers like "User:", "用户:", "问:", "Q:", "Question:".
+        - Otherwise, prefer lines ending with a question mark ("?" or "？").
+        Falls back to the original text if no user-only content is detected.
+        """
+        user_only = self._extract_user_turns(text)
+
+        # LLM path
+        if self._provider == "openai" and self._client:
+            try:
+                user_prompt = get_user_prompt(user_only)
+                query_data = self._call_llm(QUERY_EXTRACTION_SYSTEM_PROMPT, user_prompt)
+                query = query_data.get("query", "").strip()
+                if query:
+                    return query
+            except Exception:
+                # Fall through to heuristic
+                pass
+
+        # Heuristic fallback
+        return self._build_query(user_only)
+
+    def _extract_user_turns(self, text: str) -> str:
+        """Best-effort extraction of user-only utterances/questions from a dialog transcript."""
+        lines = [l for l in text.splitlines()]
+        kept: List[str] = []
+        # Updated regex to handle formats like "User (timestamp):" or "User:"
+        role_prefix_re = re.compile(r"^(user|用户|question|问|提问|q)\s*(?:\([^)]*\))?\s*[:：]\s*", flags=re.I)
+        for line in lines:
+            s = line.strip()
+            if not s:
+                continue
+            # Role-labeled user turns
+            m = role_prefix_re.match(s)
+            if m:
+                # Extract only the message content after the role prefix
+                user_message = role_prefix_re.sub("", s).strip()
+                if user_message:  # Only add non-empty messages
+                    kept.append(user_message)
+                continue
+            # Question-like lines
+            if s.endswith("?") or s.endswith("？"):
+                kept.append(s)
+        # If nothing matched, return original text as a conservative fallback
+        if not kept:
+            return text
+        return "\n".join(kept)
 
     def match_queries(self, base_query: str, candidate_queries: List[str]) -> List[bool]:
         """Uses LLM to find which candidate queries match the base query."""
@@ -252,14 +314,25 @@ class LLMQC:
         if self._provider != "openai" or not self._client:
             return kg1 + kg2  # Fallback
         try:
-            kg1_str = json.dumps(kg1)
-            kg2_str = json.dumps(kg2)
-            user_prompt = get_kg_merging_prompt(kg1_str, kg2_str)
+            # 直接传对象，由 get_kg_merging_prompt 负责序列化
+            user_prompt = get_kg_merging_prompt(kg1, kg2)
             response = self._call_llm(KG_MERGING_SYSTEM_PROMPT, user_prompt)
             return response.get("merged_kg", [])
         except Exception as e:
             warnings.warn(f"OpenAI call for KG merging failed: {e}. Defaulting to concatenation.")
             return kg1 + kg2
+
+    def merge_query(self, query1: str, query2: str) -> str:
+        """Merges two focus_query strings using an LLM."""
+        if self._provider != "openai" or not self._client:
+            return f"{query1}；{query2}"  # Fallback: simple concatenation with semicolon
+        try:
+            user_prompt = get_query_merging_prompt(query1, query2)
+            response = self._call_llm(QUERY_MERGING_SYSTEM_PROMPT, user_prompt)
+            return response.get("merged_query", "")
+        except Exception as e:
+            warnings.warn(f"OpenAI call for query merging failed: {e}. Defaulting to concatenation.")
+            return f"{query1}；{query2}"
 
     def _run_heuristic(self, text: str, source_user_id: str) -> QCResult:
         reuse, depth, focus = self._heuristic_scores(text)

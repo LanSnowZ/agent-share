@@ -209,6 +209,7 @@
       margin-bottom: 24px;
       display: flex;
       gap: 12px;
+      flex-wrap: wrap; /* 允许换行 */
     }
 
     .message.user {
@@ -361,6 +362,50 @@
       color: #1f2937;
       border: 1px solid #e5e7eb;
       border-bottom-left-radius: 4px;
+    }
+
+    /* 记忆标记样式 */
+    .message-memory-tags {
+      margin-top: 8px;
+      margin-left: 44px; /* 与消息avatar宽度对齐 (32px avatar + 12px gap) */
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      width: fit-content;
+      flex-basis: 100%; /* 强制换行到新行 */
+    }
+
+    .message.user .message-memory-tags {
+      margin-left: 0;
+      margin-right: 44px;
+      justify-content: flex-end;
+    }
+
+
+    .memory-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .memory-tag.enabled {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .memory-tag.disabled {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    .memory-tag svg {
+      width: 12px;
+      height: 12px;
     }
 
     /* Markdown样式 */
@@ -518,7 +563,7 @@
     }
 
     .chat-input-container.centered::before {
-      content: "百家AI: 集众人之智";
+      content: "百家AI经验搜索: 集众人之智";
       display: block;
       text-align: center;
       font-size: 24px;
@@ -1007,6 +1052,10 @@
     .save-btn:hover {
       background: #0f4cd1;
     }
+    
+    #logoutBtn:hover {
+      background: #dc2626 !important;
+    }
 
     .empty-state {
       display: flex;
@@ -1239,10 +1288,11 @@
               <div class="input-controls-inner">
                 <label class="model-label" for="aiModelSelector">AI模型:</label>
                 <select class="ai-model-selector" id="aiModelSelector">
-                  <option value="gpt-4o-mini">GPT-4o Mini</option>
-                  <option value="doubao-seed-1-6-thinking-250715">Doubao Seed 1.6 Thinking</option>
-                  <option value="qwen-turbo">Qwen Turbo</option>
                   <option value="gpt-5-chat-latest">GPT-5 Chat</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
+                  <option value="ark-doubao-seed-1.6-thinking-250715">Doubao Seed 1.6 Thinking</option>
+                  <option value="TA/Qwen/Qwen2.5-72B-Instruct-Turbo">Qwen2.5-72B-Instruct-Turbo</option>
+                  
                 </select>
                 <button class="shared-memory-btn" id="sharedMemoryBtn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1324,6 +1374,14 @@
         </button>
       </div>
       <div class="settings-body">
+        <!-- 当前用户信息 -->
+        <div class="form-group" style="background: #f9fafb; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
+          <label class="form-label" style="margin-bottom: 8px;">当前登录用户</label>
+          <div id="currentUserDisplay" style="font-size: 16px; font-weight: 600; color: #667eea;">
+            加载中...
+          </div>
+        </div>
+        
         <form id="settingsForm">
           <div class="form-group">
             <label class="form-label" for="openaiApiKey">OpenAI API Key</label>
@@ -1337,6 +1395,13 @@
           
           <button type="submit" class="save-btn">保存设置</button>
         </form>
+        
+        <!-- 退出登录按钮 -->
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+          <button type="button" class="save-btn" id="logoutBtn" style="background: #ef4444;">
+            退出登录
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1392,6 +1457,13 @@
     let sharedMemoryEnabled = true;  // 默认开启共享记忆
     let personalMemoryEnabled = true;  // 个人记忆默认启用
     let currentAbortController = null;  // 用于终止当前请求
+    let backendUrl = 'https://baijia.online/agent-share/'; // 后端URL
+
+    // 流式Markdown增量渲染节流状态
+    let lastMarkdownRenderAt = 0;
+    let markdownRenderScheduled = false;
+    let pendingRenderTimer = null;  // 🔥 保存pending的渲染任务ID
+    const MARKDOWN_RENDER_INTERVAL_MS = 80; // 节流间隔，平衡流畅度与性能
 
     // DOM元素
     const sidebar = document.getElementById('sidebar');
@@ -1498,7 +1570,7 @@
       
       try {
         // 调用后端验证API
-        const response = await fetch('http://127.0.0.1:5002/api/login', {
+        const response = await fetch(`${backendUrl}/api/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1588,6 +1660,24 @@
       }
       return true;
     }
+    
+    // 🔒 处理退出登录
+    function handleLogout() {
+      if (confirm('确定要退出登录吗？')) {
+        console.log('🚪 用户退出登录:', currentUsername);
+        
+        // 清除登录状态
+        localStorage.removeItem('username');
+        currentUsername = null;
+        isLoggedIn = false;
+        
+        // 关闭设置弹窗
+        closeSettings();
+        
+        // 刷新页面，会自动显示登录窗口
+        location.reload();
+      }
+    }
 
     // 初始化应用
     function initializeApp() {
@@ -1610,7 +1700,7 @@
       if (!currentUsername) return;
       
       try {
-        const configResponse = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/config.json`);
+        const configResponse = await fetch(`${backendUrl}/chat/users/${currentUsername}/config.json`);
         if (configResponse.ok) {
           const config = await configResponse.json();
           if (!config.openai_api_key || config.openai_api_key.trim() === '') {
@@ -1673,8 +1763,8 @@
         
         // 确保用户名已保存到 localStorage
         localStorage.setItem('username', currentUsername);
-        // 跳转到 dashboard
-        window.location.href = '/dashboard';
+        // 在新窗口中打开 dashboard
+        window.open('dashboard', '_blank');
       });
 
       // 记忆标签页切换
@@ -1695,6 +1785,12 @@
 
       // 共享记忆按钮
       sharedMemoryBtn.addEventListener('click', toggleSharedMemory);
+      
+      // 退出登录按钮
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+      }
     }
 
     // 停止生成
@@ -1779,7 +1875,7 @@
 
       try {
         // 🔥 使用流式API（原接口已改为流式输出）
-        const response = await fetch('http://127.0.0.1:5002/chat_direct', {
+        const response = await fetch(`${backendUrl}/chat_direct`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1808,7 +1904,54 @@
         while (true) {
           const { done, value } = await reader.read();
           
-          if (done) break;
+          if (done) {
+            // 🔥 处理最后剩余的buffer内容
+            if (buffer.trim()) {
+              console.log('🔥 处理最后buffer内容:', buffer);
+              const lines = buffer.split('\n');
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.substring(6));
+                    console.log('🔥 解析最后数据:', data);
+                    
+                    if (data.error) {
+                      updateStreamingMessage(streamingMessageDiv, `错误: ${data.error}`, true);
+                      break;
+                    }
+                    
+                    // 🔥 先处理content
+                    if (data.content) {
+                      fullResponse += data.content;
+                      updateStreamingMessage(streamingMessageDiv, fullResponse, false);
+                      console.log('🔥 添加最后内容:', data.content, '总长度:', fullResponse.length);
+                    }
+                    
+                    if (data.conversation_id) {
+                      currentChatId = data.conversation_id;
+                    }
+                    
+                    // 🔥 最后检查done
+                    if (data.done) {
+                      console.log('✅ 流式输出完成（从buffer）');
+                      updateStreamingMessage(streamingMessageDiv, fullResponse, true, sharedMemoryEnabled);
+                      
+                      responseCompleted = true;
+                      sendBtn.classList.remove('hidden');
+                      sendBtn.disabled = false;
+                      stopBtn.classList.remove('show');
+                      currentAbortController = null;
+                      chatInput.focus();
+                      break;
+                    }
+                  } catch (e) {
+                    console.error('解析最后SSE数据失败:', e, line);
+                  }
+                }
+              }
+            }
+            break;
+          }
           
           // 解码数据块
           buffer += decoder.decode(value, { stream: true });
@@ -1828,16 +1971,23 @@
                   break;
                 }
                 
+                // 🔥 先处理content，再检查done（确保所有内容都被添加）
                 if (data.content) {
-                  // 🔥 逐字添加内容（第一个字到达时会自动清除"正在思考"）
                   fullResponse += data.content;
                   updateStreamingMessage(streamingMessageDiv, fullResponse, false);
+                  console.log('📝 收到内容:', data.content, '总长度:', fullResponse.length);
                 }
                 
+                if (data.conversation_id) {
+                  currentChatId = data.conversation_id;
+                }
+                
+                // 最后检查done信号
                 if (data.done) {
-                  console.log('✅ 流式输出完成');
-                  // 最终渲染，应用语法高亮
-                  updateStreamingMessage(streamingMessageDiv, fullResponse, true);
+                  console.log('✅ 流式输出完成，最终长度:', fullResponse.length);
+                  console.log('🔥 最后50个字符:', fullResponse.slice(-50));
+                  // 最终渲染，应用语法高亮，添加记忆标记
+                  updateStreamingMessage(streamingMessageDiv, fullResponse, true, sharedMemoryEnabled);
                   
                   // 🚀 立即显示发送按钮，隐藏停止按钮
                   responseCompleted = true;
@@ -1847,10 +1997,6 @@
                   currentAbortController = null;
                   chatInput.focus();
                   break; // 跳出循环，立即结束
-                }
-                
-                if (data.conversation_id) {
-                  currentChatId = data.conversation_id;
                 }
               } catch (e) {
                 console.error('解析SSE数据失败:', e, line);
@@ -1911,10 +2057,18 @@
     }
 
     // 🔥 更新流式消息内容
-    function updateStreamingMessage(messageDiv, content, isFinal = false) {
+    function updateStreamingMessage(messageDiv, content, isFinal = false, sharedMemoryEnabled = null) {
       const messageContent = messageDiv.querySelector('.message-content');
       
       if (isFinal) {
+        // 🔥 最终渲染前，先清除所有pending的延迟渲染，避免旧内容覆盖新内容
+        if (pendingRenderTimer !== null) {
+          clearTimeout(pendingRenderTimer);
+          cancelAnimationFrame(pendingRenderTimer);
+          pendingRenderTimer = null;
+        }
+        markdownRenderScheduled = false;
+        
         // 最终渲染：使用Markdown
         messageContent.style.opacity = '1';
         marked.setOptions({
@@ -1924,17 +2078,61 @@
           mangle: false
         });
         
+        // 🔥 确保渲染完整的最新内容
+        console.log('🎨 最终渲染，内容长度:', content.length, '最后50字符:', content.slice(-50));
         messageContent.innerHTML = marked.parse(content);
         
         // 应用语法高亮
         messageContent.querySelectorAll('pre code').forEach((block) => {
           hljs.highlightElement(block);
         });
+        
+        // 添加记忆标记
+        if (sharedMemoryEnabled !== null) {
+          // 先移除旧的标记（如果存在）
+          const existingTags = messageDiv.querySelector('.message-memory-tags');
+          if (existingTags) {
+            existingTags.remove();
+          }
+          
+          const memoryTags = createMemoryTag(sharedMemoryEnabled);
+          messageDiv.appendChild(memoryTags);
+        }
       } else {
-        // 流式输出时：纯文本显示（性能更好）
-        // 🔥 第一个字到达时，自动清除"正在思考"状态
+        // 流式输出时：进行轻量级的Markdown增量渲染（不做语法高亮，避免卡顿）
+        // 使用节流，保证标题等Markdown语法能边输出边渲染
         messageContent.style.opacity = '1';
-        messageContent.textContent = content;
+
+        const now = performance.now();
+        // 🔥 使用箭头函数捕获当前content，避免闭包问题
+        const currentContent = content;
+        const doRender = () => {
+          marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false
+          });
+          // 🔥 使用捕获的currentContent而不是外层的content
+          messageContent.innerHTML = marked.parse(currentContent);
+          markdownRenderScheduled = false;
+          pendingRenderTimer = null;
+          lastMarkdownRenderAt = performance.now();
+        };
+
+        if (!markdownRenderScheduled && (now - lastMarkdownRenderAt) >= MARKDOWN_RENDER_INTERVAL_MS) {
+          // 立即渲染一次
+          doRender();
+        } else if (!markdownRenderScheduled) {
+          // 延迟到下一帧或节流间隔到达再渲染
+          markdownRenderScheduled = true;
+          const delay = Math.max(0, MARKDOWN_RENDER_INTERVAL_MS - (now - lastMarkdownRenderAt));
+          if (typeof requestAnimationFrame === 'function' && delay < 16) {
+            pendingRenderTimer = requestAnimationFrame(doRender);
+          } else {
+            pendingRenderTimer = setTimeout(doRender, delay);
+          }
+        }
       }
       
       // 自动滚动到底部
@@ -1976,7 +2174,7 @@
     }
 
     // 添加消息到UI
-    function addMessageToUI(type, content) {
+    function addMessageToUI(type, content, sharedMemoryEnabled = null) {
       const messageDiv = document.createElement('div');
       messageDiv.className = `message ${type}`;
       
@@ -2012,8 +2210,47 @@
       messageDiv.appendChild(avatar);
       messageDiv.appendChild(messageContent);
       
+      // 如果是AI消息且有记忆信息，添加记忆标记
+      if (type === 'assistant' && sharedMemoryEnabled !== null) {
+        const memoryTags = createMemoryTag(sharedMemoryEnabled);
+        messageDiv.appendChild(memoryTags);
+      }
+      
       chatMessages.appendChild(messageDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 创建记忆标记
+    function createMemoryTag(sharedMemoryEnabled) {
+      const tagsContainer = document.createElement('div');
+      tagsContainer.className = 'message-memory-tags';
+      
+      const memoryTag = document.createElement('span');
+      memoryTag.className = `memory-tag ${sharedMemoryEnabled ? 'enabled' : 'disabled'}`;
+      
+      if (sharedMemoryEnabled) {
+        memoryTag.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          已开启记忆
+        `;
+      } else {
+        memoryTag.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          未开启记忆
+        `;
+      }
+      
+      tagsContainer.appendChild(memoryTag);
+      return tagsContainer;
     }
 
     // 创建新对话
@@ -2101,7 +2338,7 @@
       if (!requireLogin()) return;
       
       try {
-        const response = await fetch('http://127.0.0.1:5002/get_chat_conversations', {
+        const response = await fetch(`${backendUrl}/get_chat_conversations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2211,7 +2448,7 @@
       if (!currentUsername) return;
       
       try {
-        const response = await fetch('http://127.0.0.1:5002/get_chat_conversations', {
+        const response = await fetch(`${backendUrl}/get_chat_conversations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2289,7 +2526,7 @@
       }
       
       try {
-        const response = await fetch('http://127.0.0.1:5002/get_chat_messages', {
+        const response = await fetch(`${backendUrl}/get_chat_messages`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2318,7 +2555,9 @@
           
           // 加载聊天消息
           data.conversation.messages.forEach(msg => {
-            addMessageToUI(msg.type, msg.content);
+            // 从消息中读取shared_memory_enabled信息
+            const sharedMemoryEnabled = msg.shared_memory_enabled !== undefined ? msg.shared_memory_enabled : null;
+            addMessageToUI(msg.type, msg.content, sharedMemoryEnabled);
           });
           
           // 更新活跃状态
@@ -2375,6 +2614,12 @@
       // 🔒 登录拦截
       if (!requireLogin()) return;
       
+      // 显示当前用户名
+      const currentUserDisplay = document.getElementById('currentUserDisplay');
+      if (currentUserDisplay && currentUsername) {
+        currentUserDisplay.textContent = currentUsername;
+      }
+      
       settingsModal.classList.add('show');
     }
 
@@ -2422,11 +2667,11 @@
       try {
         let url;
         if (memoryType === 'short') {
-          url = `http://127.0.0.1:5002/chat/users/${currentUsername}/short_term.json`;
+          url = `${backendUrl}/chat/users/${currentUsername}/short_term.json`;
         } else if (memoryType === 'mid') {
-          url = `http://127.0.0.1:5002/chat/users/${currentUsername}/mid_term.json`;
+          url = `${backendUrl}/chat/users/${currentUsername}/mid_term.json`;
         } else if (memoryType === 'long') {
-          url = `http://127.0.0.1:5002/chat/users/${currentUsername}/long_term_user.json`;
+          url = `${backendUrl}/chat/users/${currentUsername}/long_term_user.json`;
         }
         
         if (!url) {
@@ -2572,30 +2817,31 @@
           // 处理用户画像数据，在每个句号后添加换行
           const formattedData = data.replace(/。/g, '。<br>');
           
+          // 仅保留更新时间等元信息，不再展示原始“用户画像”全文
           memoryItem.innerHTML = `
             <div class="memory-item-header">
               <span class="memory-item-time">用户: ${profileKey}</span>
               <span class="memory-item-time">更新时间: ${lastUpdated}</span>
             </div>
-            <div class="memory-item-content">
-              <div class="memory-item-user">用户画像:</div>
-              <div class="memory-item-assistant">${formattedData}</div>
-            </div>
           `;
-          
+
           container.appendChild(memoryItem);
         });
         
+        // 追加：画像维度折叠面板（按三大类，显示已存在的小维度）
+        renderUserDimensionsCollapsible(container);
+
         // 显示知识库内容
         const knowledgeBase = memories.knowledge_base || [];
         if (knowledgeBase.length > 0) {
           const knowledgeItem = document.createElement('div');
           knowledgeItem.className = 'memory-item';
           
-          // 处理知识库内容，在每个句号后添加换行
-          const formattedKnowledge = knowledgeBase.slice(0, 3).map(item => 
-            item.replace(/。/g, '。<br>')
-          ).join('<br><br>');
+          // 处理知识库内容（兼容对象/字符串），在每个句号后添加换行
+          const formattedKnowledge = knowledgeBase.slice(0, 3).map(item => {
+            const knowledgeText = typeof item === 'object' ? (item.knowledge || JSON.stringify(item)) : item;
+            return String(knowledgeText).replace(/。/g, '。<br>');
+          }).join('<br><br>');
           
           knowledgeItem.innerHTML = `
             <div class="memory-item-header">
@@ -2615,10 +2861,11 @@
           const assistantItem = document.createElement('div');
           assistantItem.className = 'memory-item';
           
-          // 处理助手知识内容，在每个句号后添加换行
-          const formattedAssistantKnowledge = assistantKnowledge.slice(0, 3).map(item => 
-            item.replace(/。/g, '。<br>')
-          ).join('<br><br>');
+          // 处理助手知识内容（兼容对象/字符串），在每个句号后添加换行
+          const formattedAssistantKnowledge = assistantKnowledge.slice(0, 3).map(item => {
+            const knowledgeText = typeof item === 'object' ? (item.knowledge || JSON.stringify(item)) : item;
+            return String(knowledgeText).replace(/。/g, '。<br>');
+          }).join('<br><br>');
           
           assistantItem.innerHTML = `
             <div class="memory-item-header">
@@ -2644,13 +2891,72 @@
       return names[memoryType] || '记忆';
     }
 
+    // 渲染用户画像维度折叠面板（调用后端统一API）
+    async function renderUserDimensionsCollapsible(parentContainer) {
+      try {
+        const resp = await fetch(`${backendUrl}/api/get_user_dimensions?username=${currentUsername}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.success) return;
+        const dims = data.dimensions || {};
+        const groups = data.groups || {};
+
+        const section = document.createElement('div');
+        section.className = 'memory-item';
+        section.innerHTML = `
+          <div class="memory-item-header">
+            <span class="memory-item-time">🧩 用户画像维度</span>
+          </div>
+        `;
+
+        const wrapper = document.createElement('div');
+        const groupOrder = [groups.psych || '心理模型', groups.align || 'AI对齐维度', groups.interest || '内容兴趣标签'];
+        groupOrder.forEach(groupName => {
+          const entries = dims[groupName] || {};
+          const keys = Object.keys(entries);
+          const details = document.createElement('details');
+          details.open = true;
+          const summary = document.createElement('summary');
+          summary.textContent = `${groupName}（${keys.length} 项）`;
+          summary.style.cursor = 'pointer';
+          summary.style.fontWeight = '600';
+          summary.style.margin = '6px 0';
+          details.appendChild(summary);
+          const list = document.createElement('div');
+          list.style.display = 'flex';
+          list.style.flexDirection = 'column';
+          list.style.gap = '8px';
+          if (keys.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'memory-item-assistant';
+            empty.textContent = '暂无画像条目';
+            list.appendChild(empty);
+          } else {
+            keys.forEach(k => {
+              const item = document.createElement('div');
+              item.className = 'memory-item-assistant';
+              const level = entries[k];
+              item.textContent = `${k}: ${level}`;
+              list.appendChild(item);
+            });
+          }
+          details.appendChild(list);
+          wrapper.appendChild(details);
+        });
+        section.appendChild(wrapper);
+        parentContainer.appendChild(section);
+      } catch (e) {
+        console.error('渲染用户画像维度失败:', e);
+      }
+    }
+
     // 加载用户配置
     async function loadUserConfig() {
       if (!currentUsername) return;
       
       try {
         // 先尝试从chat目录加载配置
-        const response = await fetch('http://127.0.0.1:5002/get_chat_conversations', {
+        const response = await fetch(`${backendUrl}/get_chat_conversations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2660,7 +2966,7 @@
         
         if (response.ok) {
           // 从chat目录加载配置
-          const configResponse = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/config.json`);
+          const configResponse = await fetch(`${backendUrl}/chat/users/${currentUsername}/config.json`);
           if (configResponse.ok) {
             const data = await configResponse.json();
             
@@ -2715,7 +3021,7 @@
       settings.username = currentUsername;
       
       try {
-        const response = await fetch('http://127.0.0.1:5002/save_chat_user_config', {
+        const response = await fetch(`${backendUrl}/save_chat_user_config`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

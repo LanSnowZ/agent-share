@@ -611,15 +611,22 @@
 
     .shared-item-header {
       display: flex;
-      justify-content: space-between;
-      align-items: start;
+      flex-direction: column;
+      gap: 8px;
       margin-bottom: 12px;
+    }
+
+    .shared-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .shared-item-id {
       font-size: 11px;
       color: #9ca3af;
       font-family: 'Courier New', monospace;
+      word-break: break-all;
     }
 
     .shared-item-user {
@@ -629,6 +636,17 @@
       padding: 3px 10px;
       border-radius: 12px;
       font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .shared-item-query {
+      font-size: 13px;
+      color: #374151;
+      font-weight: 600;
+      padding: 8px 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border-left: 3px solid #667eea;
     }
 
     .shared-item-content {
@@ -636,6 +654,9 @@
       font-size: 14px;
       line-height: 1.7;
       margin-bottom: 12px;
+      word-wrap: break-word;
+      word-break: break-word;
+      white-space: pre-wrap;
     }
 
     .shared-item-meta {
@@ -662,7 +683,7 @@
 </head>
 <body>
   <!-- 返回聊天按钮 - 右上角悬浮 -->
-  <a href="/" class="back-btn">
+  <a href="https://baijia.online/agent-share/" class="back-btn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
       <path d="M19 12H5M12 19l-7-7 7-7"/>
     </svg>
@@ -792,6 +813,7 @@
 
   <script>
     let currentUsername = null;
+    let backendUrl = 'https://baijia.online/agent-share/'; // 后端URL
 
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
@@ -860,6 +882,10 @@
         if (sharedCard) {
           sharedCard.classList.remove('active');
         }
+        // 恢复并显示当前选择的个人记忆类型
+        const memorySelector = document.getElementById('memory-type-selector');
+        const currentType = memorySelector ? memorySelector.value : 'short';
+        showMemoryType(currentType);
       } else if (section === 'shared-memory') {
         document.getElementById('shared-memory-content').classList.add('active');
         // 激活共享记忆卡片
@@ -936,12 +962,12 @@
     async function loadShortTermMemory() {
       try {
         // 尝试从 memoryos_data/{username}/users/{username}/ 路径加载
-        let response = await fetch(`http://127.0.0.1:5002/api/get_memory_file?username=${currentUsername}&file=short_term.json`);
+        let response = await fetch(`${backendUrl}/api/get_memory_file?username=${currentUsername}&file=short_term.json`);
         
         // 如果API不存在，回退到直接路径
         if (!response.ok) {
           console.log('使用备用路径加载短期记忆');
-          response = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/short_term.json`);
+          response = await fetch(`${backendUrl}/chat/users/${currentUsername}/short_term.json`);
         }
         
         if (response.ok) {
@@ -999,12 +1025,12 @@
     async function loadMidTermMemory() {
       try {
         // 使用新的API加载
-        let response = await fetch(`http://127.0.0.1:5002/api/get_memory_file?username=${currentUsername}&file=mid_term.json`);
+        let response = await fetch(`${backendUrl}/api/get_memory_file?username=${currentUsername}&file=mid_term.json`);
         
         // 如果API不存在，回退到直接路径
         if (!response.ok) {
           console.log('使用备用路径加载中期记忆');
-          response = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/mid_term.json`);
+          response = await fetch(`${backendUrl}/chat/users/${currentUsername}/mid_term.json`);
         }
         
         if (response.ok) {
@@ -1102,12 +1128,12 @@
     async function loadLongTermMemory() {
       try {
         // 使用新的API加载
-        let response = await fetch(`http://127.0.0.1:5002/api/get_memory_file?username=${currentUsername}&file=long_term_user.json`);
+        let response = await fetch(`${backendUrl}/api/get_memory_file?username=${currentUsername}&file=long_term_user.json`);
         
         // 如果API不存在，回退到直接路径
         if (!response.ok) {
           console.log('使用备用路径加载长期记忆');
-          response = await fetch(`http://127.0.0.1:5002/chat/users/${currentUsername}/long_term_user.json`);
+          response = await fetch(`${backendUrl}/chat/users/${currentUsername}/long_term_user.json`);
         }
         
         if (response.ok) {
@@ -1162,36 +1188,15 @@
 
         countEl.textContent = totalCount;
         container.innerHTML = '';
+        // 先渲染统一后的画像维度（折叠面板）
+        renderUserDimensionsSection(container);
       } catch (error) {
         console.error('显示长期记忆时出错:', error);
         showEmptyState('long-term-content', `显示失败: ${error.message}`);
         return;
       }
       
-      // 显示用户画像
-      try {
-        Object.keys(userProfiles).forEach(profileKey => {
-          const profile = userProfiles[profileKey] || {};
-          const item = document.createElement('div');
-          item.className = 'profile-item';
-          
-          const data = profile.data || '暂无数据';
-          const lastUpdated = profile.last_updated || '未知时间';
-          const formattedData = data.replace(/。/g, '。<br>');
-          
-          item.innerHTML = `
-            <div class="profile-header">
-              <span class="profile-user">用户画像: ${profileKey}</span>
-              <span class="profile-updated">${lastUpdated}</span>
-            </div>
-            <div class="profile-content">${formattedData}</div>
-          `;
-          
-          container.appendChild(item);
-        });
-      } catch (error) {
-        console.error('显示用户画像失败:', error);
-      }
+      // 不再渲染原始“用户画像”文本块，仅保留统一的画像维度折叠面板
       
       // 显示知识库
       try {
@@ -1246,19 +1251,78 @@
       }
     }
 
+    // 渲染画像维度折叠面板（按三大类，展示已分析出的子维度，未命中则留空但仍显示大类）
+    async function renderUserDimensionsSection(parentContainer) {
+      try {
+        const resp = await fetch(`${backendUrl}/api/get_user_dimensions?username=${currentUsername}`);
+        if (!resp.ok) return; 
+        const data = await resp.json();
+        if (!data.success) return;
+        const dims = data.dimensions || {};
+        const groups = data.groups || {};
+
+        const section = document.createElement('div');
+        section.className = 'knowledge-section';
+        section.innerHTML = `
+          <div class="knowledge-header">
+            🧩 用户画像维度
+          </div>
+        `;
+
+        const groupOrder = [groups.psych || '心理模型', groups.align || 'AI对齐维度', groups.interest || '内容兴趣标签'];
+        groupOrder.forEach(groupName => {
+          const entries = dims[groupName] || {};
+          const keys = Object.keys(entries);
+          const details = document.createElement('details');
+          details.open = true; // 默认展开
+          const summary = document.createElement('summary');
+          summary.textContent = `${groupName}（${keys.length} 项）`;
+          summary.style.cursor = 'pointer';
+          summary.style.fontWeight = '600';
+          summary.style.margin = '6px 0';
+          details.appendChild(summary);
+
+          const list = document.createElement('div');
+          list.style.display = 'flex';
+          list.style.flexDirection = 'column';
+          list.style.gap = '8px';
+          if (keys.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'knowledge-item';
+            empty.textContent = '暂无画像条目';
+            list.appendChild(empty);
+          } else {
+            keys.forEach(k => {
+              const item = document.createElement('div');
+              item.className = 'knowledge-item';
+              const level = entries[k];
+              item.textContent = `${k}: ${level}`; // 形如 “简洁性: 高”
+              list.appendChild(item);
+            });
+          }
+          details.appendChild(list);
+          section.appendChild(details);
+        });
+
+        parentContainer.appendChild(section);
+      } catch (e) {
+        console.error('渲染画像维度失败:', e);
+      }
+    }
+
     // 加载共享记忆
     async function loadSharedMemory() {
       try {
         console.log('🔄 开始加载共享记忆，用户名:', currentUsername);
         
-        const response = await fetch('http://127.0.0.1:5002/api/get_shared_memories', {
+        const response = await fetch(`${backendUrl}/api/get_shared_memories`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             username: currentUsername,
-            limit: 50
+            limit: 10000  // 增加限制以获取所有共享记忆
           })
         });
         
@@ -1323,16 +1387,20 @@
         const content = memory.content || '无内容';
         const timestamp = memory.timestamp || '未知时间';
         const source = memory.source || '未知来源';
+        const focusQuery = memory.focus_query || '';
         
-        // 截断过长的内容以保持界面整洁
-        const truncatedContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
+        // 显示完整内容，不再截断
+        // 使用textContent来安全地插入文本（防止HTML注入）
         
         item.innerHTML = `
           <div class="shared-item-header">
-            <span class="shared-item-id">${id.substring(0, 8)}...</span>
-            <span class="shared-item-user">${userId}</span>
+            <div class="shared-item-top">
+              <span class="shared-item-id">${id}</span>
+              <span class="shared-item-user">${userId}</span>
+            </div>
+            ${focusQuery ? `<div class="shared-item-query">问题: ${focusQuery}</div>` : ''}
           </div>
-          <div class="shared-item-content">${truncatedContent}</div>
+          <div class="shared-item-content"></div>
           <div class="shared-item-meta">
             <div class="meta-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
@@ -1349,6 +1417,12 @@
             </div>
           </div>
         `;
+        
+        // 使用textContent安全地插入完整内容（保持换行格式）
+        const contentDiv = item.querySelector('.shared-item-content');
+        if (contentDiv) {
+          contentDiv.textContent = content;
+        }
         
         container.appendChild(item);
         

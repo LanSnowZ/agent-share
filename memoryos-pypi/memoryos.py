@@ -123,6 +123,58 @@ class Memoryos:
         
         self.mid_term_heat_threshold = mid_term_heat_threshold
 
+    def _find_last_page_in_chain(self):
+        """Find the last page in the current conversation chain.
+        
+        Priority:
+        1. Last page in short-term memory (most recent)
+        2. If short-term is empty, find the most recent page in mid-term memory
+        
+        Returns page_id of the last page, or None if no previous pages exist.
+        """
+        # First check short-term memory
+        short_term_pages = self.short_term_memory.get_all()
+        if short_term_pages:
+            last_short_term = short_term_pages[-1]
+            return last_short_term.get("page_id")
+        
+        # If short-term is empty, check mid-term memory for the most recent page
+        # Find the page with the latest timestamp that has no next_page
+        latest_page_id = None
+        latest_timestamp = None
+        
+        for session_id, session in self.mid_term_memory.sessions.items():
+            for page in session.get("details", []):
+                # Look for pages without next_page (potential chain ends)
+                if not page.get("next_page"):
+                    page_timestamp = page.get("timestamp", "")
+                    if latest_timestamp is None or page_timestamp > latest_timestamp:
+                        latest_timestamp = page_timestamp
+                        latest_page_id = page.get("page_id")
+        
+        return latest_page_id
+    
+    def _update_page_next_link(self, page_id: str, next_page_id: str):
+        """Update a page's next_page link.
+        
+        Searches in both short-term and mid-term memory.
+        """
+        # Check short-term memory first
+        short_term_pages = self.short_term_memory.get_all()
+        for page in short_term_pages:
+            if page.get("page_id") == page_id:
+                page["next_page"] = next_page_id
+                self.short_term_memory.save()
+                return
+        
+        # Check mid-term memory
+        for session_id, session in self.mid_term_memory.sessions.items():
+            for page in session.get("details", []):
+                if page.get("page_id") == page_id:
+                    page["next_page"] = next_page_id
+                    self.mid_term_memory.save()
+                    return
+
     def _trigger_profile_and_knowledge_update_if_needed(self):
         """
         Checks mid-term memory for hot segments and triggers profile/knowledge update if threshold is met.
@@ -177,6 +229,9 @@ class Memoryos:
                         knowledge_result = future_knowledge.result()
                     except Exception as e:
                         print(f"Error in parallel LLM processing: {e}")
+                        print(f"错误类型: {type(e).__name__}")
+                        import traceback
+                        print(f"详细错误信息: {traceback.format_exc()}")
                         return
                 
                 new_user_private_knowledge = knowledge_result.get("private")
@@ -227,14 +282,29 @@ class Memoryos:
         if not timestamp:
             timestamp = get_timestamp()
         
+        # Generate page_id for the new QA pair
+        page_id = generate_id("page")
+        
+        # Find the last page in the chain (from short-term or mid-term)
+        pre_page_id = self._find_last_page_in_chain()
+        
         qa_pair = {
             "user_input": user_input,
             "agent_response": agent_response,
-            "timestamp": timestamp
+            "timestamp": timestamp,
+            "page_id": page_id,
+            "pre_page": pre_page_id,
+            "next_page": None,
+            "meta_info": None
             # meta_data can be added here if it needs to be stored with the QA pair
         }
+        
+        # Update the previous page's next_page if it exists
+        if pre_page_id:
+            self._update_page_next_link(pre_page_id, page_id)
+        
         self.short_term_memory.add_qa_pair(qa_pair)
-        print(f"Memoryos: Added QA to short-term. User: {user_input[:30]}...")
+        print(f"Memoryos: Added QA to short-term. User: {user_input[:30]}... (page_id={page_id}, pre_page={pre_page_id})")
 
         if self.short_term_memory.is_full():
             print("Memoryos: Short-term memory full. Processing to mid-term.")

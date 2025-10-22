@@ -60,6 +60,119 @@ print(f"{'=' * 60}\n")
 store = JsonStore(config)
 retrieve_pipeline = RetrievePipeline(config)
 memoryos_instances = {}  # 存储每个用户的MemoryOS实例
+# =============================
+# 用户画像维度提取与同步（统一到 users.json）
+import re
+
+DIMENSION_GROUPS_CN = {
+    "psych": "心理模型",
+    "align": "AI对齐维度",
+    "interest": "内容兴趣标签",
+}
+
+DIMENSION_MAP_EN_TO_CN: dict[str, tuple[str, str]] = {
+    # 心理模型（部分，覆盖 prompts 中定义）
+    "Extraversion": ("外向性", "psych"),
+    "Openness": ("开放性", "psych"),
+    "Agreeableness": ("宜人性", "psych"),
+    "Conscientiousness": ("尽责性", "psych"),
+    "Neuroticism": ("情绪稳定性", "psych"),
+    "Physiological Needs": ("生理需求", "psych"),
+    "Need for Security": ("安全需求", "psych"),
+    "Need for Belonging": ("归属需求", "psych"),
+    "Need for Self-Esteem": ("自尊需求", "psych"),
+    "Cognitive Needs": ("认知需求", "psych"),
+    "Aesthetic Appreciation": ("审美欣赏", "psych"),
+    "Self-Actualization": ("自我实现", "psych"),
+    "Need for Order": ("秩序需求", "psych"),
+    "Need for Autonomy": ("自主需求", "psych"),
+    "Need for Power": ("权力需求", "psych"),
+    "Need for Achievement": ("成就需求", "psych"),
+    # AI 对齐维度
+    "Helpfulness": ("帮助性", "align"),
+    "Honesty": ("诚实性", "align"),
+    "Safety": ("安全性", "align"),
+    "Instruction Compliance": ("指令遵从", "align"),
+    "Truthfulness": ("真实度", "align"),
+    "Coherence": ("连贯性", "align"),
+    "Complexity": ("复杂度偏好", "align"),
+    "Conciseness": ("简洁性", "align"),
+    # 内容兴趣标签
+    "Science Interest": ("科学兴趣", "interest"),
+    "Education Interest": ("教育兴趣", "interest"),
+    "Psychology Interest": ("心理学兴趣", "interest"),
+    "Family Concern": ("家庭关切", "interest"),
+    "Fashion Interest": ("时尚兴趣", "interest"),
+    "Art Interest": ("艺术兴趣", "interest"),
+    "Health Concern": ("健康关切", "interest"),
+    "Financial Management Interest": ("理财兴趣", "interest"),
+    "Sports Interest": ("运动兴趣", "interest"),
+    "Food Interest": ("美食兴趣", "interest"),
+    "Travel Interest": ("旅行兴趣", "interest"),
+    "Music Interest": ("音乐兴趣", "interest"),
+    "Literature Interest": ("文学兴趣", "interest"),
+    "Film Interest": ("电影兴趣", "interest"),
+    "Social Media Activity": ("社交媒体活跃", "interest"),
+    "Tech Interest": ("科技兴趣", "interest"),
+    "Environmental Concern": ("环境关切", "interest"),
+    "History Interest": ("历史兴趣", "interest"),
+    "Political Concern": ("政治关切", "interest"),
+    "Religious Interest": ("宗教兴趣", "interest"),
+    "Gaming Interest": ("游戏兴趣", "interest"),
+    "Animal Concern": ("动物关切", "interest"),
+    "Emotional Expression": ("情绪表达", "interest"),
+    "Sense of Humor": ("幽默风格", "interest"),
+    "Information Density": ("信息密度偏好", "interest"),
+    "Language Style": ("语言风格", "interest"),
+    "Practicality": ("实用性偏好", "interest"),
+}
+
+LEVEL_MAP_EN_TO_CN = {
+    "High": "高",
+    "Medium": "中",
+    "Low": "低",
+    # 风格取值（当维度不是高/中/低时，原样或映射）
+    "Formal": "正式",
+    "Informal": "口语",
+    "Restrained": "克制",
+    "Expressive": "外露",
+    "Detailed": "详细",
+    "Concise": "简洁",
+}
+
+def extract_profile_dimensions_from_text(profile_text: str) -> dict:
+    """从 MemoryOS 长期画像文本中提取维度 -> { 大维度中文: { 小维度中文: 等级中文 } }。
+    仅解析能识别到的维度；未命中不返回。
+    """
+    grouped = {v: {} for v in DIMENSION_GROUPS_CN.values()}
+    if not profile_text:
+        return grouped
+    # 支持多种描述：Level / Preference Level / Expectation Level 等
+    pattern = re.compile(r"- \*\*\s*([^（(\*:]+?)\s*[（(][^:：]*?:\s*([^）)]+)[)）]\*\*\s*[:：]?")
+    for m in pattern.finditer(profile_text):
+        en_name = m.group(1).strip()
+        raw_level = m.group(2).strip()
+        level_cn = LEVEL_MAP_EN_TO_CN.get(raw_level, raw_level)
+        mapped = DIMENSION_MAP_EN_TO_CN.get(en_name)
+        if not mapped:
+            continue
+        dim_cn, group_key = mapped
+        group_cn = DIMENSION_GROUPS_CN.get(group_key, group_key)
+        grouped.setdefault(group_cn, {})
+        grouped[group_cn][dim_cn] = level_cn
+    return grouped
+
+def sync_user_dimensions_to_store(user_id: str, profile_text: str) -> None:
+    try:
+        grouped = extract_profile_dimensions_from_text(profile_text)
+        # 读取现有用户，保持 profile_text
+        user_profile = store.get_user(user_id)
+        profile_text_to_keep = user_profile.profile_text if user_profile else f"用户 {user_id}"
+        updated = UserProfile(user_id=user_id, profile_text=profile_text_to_keep, profile_dimensions=grouped)
+        store.add_user(updated)
+        print(f"✅ 已同步结构化用户画像维度到 users.json -> {user_id}")
+    except Exception as e:
+        print(f"⚠️ 同步用户画像维度失败: {e}")
 
 # 延迟导入 IngestPipeline
 ingest_pipeline = None
@@ -91,10 +204,6 @@ from utils import check_conversation_continuity
 # 用户数据存储目录 - 使用memoryos_data结构，按照项目/用户层级组织
 MEMORYOS_DATA_DIR = os.path.join(project_root, "eval", "memoryos_data")
 os.makedirs(MEMORYOS_DATA_DIR, exist_ok=True)
-
-# 全局：维护每个用户的当前对话链（用于检测思维链断裂）
-user_conversation_chains = {}  # {user_id: [list of conversation pages]}
-
 
 def save_chain_to_shared_memory(user_id: str, chain_pages: List[Dict]):
     """将对话链保存到共享记忆"""
@@ -133,52 +242,181 @@ def save_chain_to_shared_memory(user_id: str, chain_pages: List[Dict]):
         print(f"❌ 存储思维链到共享记忆失败: {e}")
 
 
-def check_and_store_chain_break(
-    user_id: str, new_user_msg: str, new_agent_msg: str
-) -> None:
-    """检测思维链断裂并存储"""
-    if user_id not in user_conversation_chains:
-        user_conversation_chains[user_id] = []
+def get_page_from_mid_term(memoryos_instance, page_id: str) -> Optional[Dict]:
+    """从中期记忆中根据page_id获取页面"""
+    if not page_id:
+        return None
+    
+    try:
+        mid_term = memoryos_instance.mid_term_memory
+        for session_id, session in mid_term.sessions.items():
+            for page in session.get("details", []):
+                if page.get("page_id") == page_id:
+                    return page
+        return None
+    except Exception as e:
+        print(f"⚠️ 从中期记忆查找页面失败: {e}")
+        return None
 
-    # 创建当前对话页面
-    current_page = {
-        "user_input": new_user_msg,
-        "agent_response": new_agent_msg,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
 
-    chain = user_conversation_chains[user_id]
-
-    # 如果有历史对话，检测是否连续
-    if chain:
-        last_page = chain[-1]
-
-        # 获取 OpenAI 客户端用于连续性检测
-        if user_id in memoryos_instances:
-            memoryos_client = memoryos_instances[user_id].client
+def trace_complete_chain(memoryos_instance, start_qa_list: List[Dict]) -> List[Dict]:
+    """追溯完整的对话链
+    
+    从短期记忆的QA列表开始，向前追溯pre_page链接，找到中期记忆里的所有相关页面。
+    返回完整的链（从最早到最晚）。
+    
+    现在短期记忆的QA也包含page_id和pre_page，可以直接追溯。
+    """
+    if not start_qa_list:
+        return []
+    
+    complete_chain = []
+    
+    try:
+        # 从短期记忆的第一条开始追溯
+        first_qa = start_qa_list[0]
+        current_pre_page_id = first_qa.get("pre_page")
+        
+        if not current_pre_page_id:
+            print("📍 短期记忆第一条无pre_page链接，这是对话链的起点")
         else:
-            # 使用全局配置创建临时客户端
-            memoryos_client = OpenAIClient(
-                api_key=config.openai_api_key, base_url=config.openai_api_base
-            )
+            # 有pre_page，向前追溯中期记忆
+            print(f"🔍 开始追溯pre_page链接: {current_pre_page_id}")
+            visited = set()
+            mid_term_count = 0
+            
+            while current_pre_page_id and current_pre_page_id not in visited:
+                visited.add(current_pre_page_id)
+                page = get_page_from_mid_term(memoryos_instance, current_pre_page_id)
+                
+                if page:
+                    # 转换为QA格式并添加到链的开头
+                    qa = {
+                        "user_input": page.get("user_input", ""),
+                        "agent_response": page.get("agent_response", ""),
+                        "timestamp": page.get("timestamp", ""),
+                        "page_id": page.get("page_id"),
+                        "pre_page": page.get("pre_page")
+                    }
+                    complete_chain.insert(0, qa)  # 插入到最前面
+                    mid_term_count += 1
+                    current_pre_page_id = page.get("pre_page")
+                    
+                    if not current_pre_page_id:
+                        print(f"  ↳ 找到对话链起点（共追溯 {mid_term_count} 条中期记忆）")
+                    elif mid_term_count % 5 == 0:  # 每5条打印一次进度
+                        print(f"  ↳ 已追溯 {mid_term_count} 条...")
+                else:
+                    print(f"  ✗ 页面 {current_pre_page_id} 未在中期记忆找到，停止追溯（已追溯 {mid_term_count} 条）")
+                    break
+        
+        # 添加短期记忆的内容
+        complete_chain.extend(start_qa_list)
+        
+        mid_count = len(complete_chain) - len(start_qa_list)
+        print(f"🔗 完整链追溯完成: 共 {len(complete_chain)} 条（中期: {mid_count}, 短期: {len(start_qa_list)}）")
+        
+    except Exception as e:
+        print(f"⚠️ 追溯完整链失败: {e}")
+        import traceback
+        traceback.print_exc()
+        # 失败时返回原始短期记忆内容
+        return start_qa_list
+    
+    return complete_chain
 
+
+def check_and_store_chain_break_from_memoryos(
+    user_id: str, memoryos_instance
+) -> None:
+    """从MemoryOS短期记忆检测思维链断裂并存储到共享记忆
+    
+    在每次add_memory后调用，检测短期记忆中最后两条的连续性。
+    如果断链，追溯完整的对话链（包括中期记忆），并发送到共享记忆。
+    """
+    if not memoryos_instance:
+        return
+
+    try:
+        # 从MemoryOS短期记忆读取所有QA对
+        short_term_qa_list = memoryos_instance.short_term_memory.get_all()
+        
+        if len(short_term_qa_list) < 2:
+            # 少于2条，无需检测连续性
+            return
+
+        # 检测最后两条的连续性
+        last_qa = short_term_qa_list[-1]
+        second_last_qa = short_term_qa_list[-2]
+        
+        # 转换为page格式
+        previous_page = {
+            "user_input": second_last_qa.get("user_input", ""),
+            "agent_response": second_last_qa.get("agent_response", ""),
+            "timestamp": second_last_qa.get("timestamp", "")
+        }
+        current_page = {
+            "user_input": last_qa.get("user_input", ""),
+            "agent_response": last_qa.get("agent_response", ""),
+            "timestamp": last_qa.get("timestamp", "")
+        }
+        
         # 检测对话连续性
         is_continuous = check_conversation_continuity(
-            last_page, current_page, memoryos_client, model=config.llm_model_name
+            previous_page, current_page, memoryos_instance.client, model=config.llm_model_name
         )
 
         if not is_continuous:
-            # 思维链断裂！保存之前的对话链
-            print(f"💡 检测到用户 {user_id} 的思维链断裂！当前链长度: {len(chain)}")
-            save_chain_to_shared_memory(user_id, chain)
-            # 清空，开始新的思维链
-            user_conversation_chains[user_id] = [current_page]
+            # 思维链断裂！追溯完整链并发送到共享记忆
+            short_term_broken = short_term_qa_list[:-1]  # 除了最后一条
+            
+            # 追溯完整的对话链（包括中期记忆）
+            complete_chain = trace_complete_chain(memoryos_instance, short_term_broken)
+            
+            print(f"💡 检测到用户 {user_id} 的思维链断裂！完整对话链长度: {len(complete_chain)}")
+            
+            # 转换为page格式并发送到共享记忆
+            chain_pages = [
+                {
+                    "user_input": qa.get("user_input", ""),
+                    "agent_response": qa.get("agent_response", ""),
+                    "timestamp": qa.get("timestamp", "")
+                }
+                for qa in complete_chain
+            ]
+            save_chain_to_shared_memory(user_id, chain_pages)
+            
+            # 🔪 断开链接：将最后一条（新话题开头）的 pre_page 置空
+            old_pre_page_id = last_qa.get("pre_page")
+            last_qa["pre_page"] = None
+            
+            # 同时将倒数第二条的 next_page 置空（可能在短期或中期）
+            second_last_page_id = second_last_qa.get("page_id")
+            if second_last_page_id:
+                # 先尝试在短期记忆中更新
+                second_last_qa["next_page"] = None
+                
+                # 如果倒数第二条已经在中期记忆，也需要更新
+                mid_page = get_page_from_mid_term(memoryos_instance, second_last_page_id)
+                if mid_page:
+                    mid_page["next_page"] = None
+                    memoryos_instance.mid_term_memory.save()
+            
+            # 保存短期记忆以持久化链接断开
+            memoryos_instance.short_term_memory.save()
+            
+            print(f"✂️ 已断开对话链链接（pre_page: {old_pre_page_id} → None，开始新链）")
+            print(f"📤 完整对话链已发送到共享记忆")
         else:
-            # 对话连续，添加到当前链
-            chain.append(current_page)
-    else:
-        # 第一条对话，直接添加
-        user_conversation_chains[user_id].append(current_page)
+            # 计算当前完整对话链长度（包括中期）
+            first_qa = short_term_qa_list[0]
+            current_chain = trace_complete_chain(memoryos_instance, short_term_qa_list)
+            print(f"✅ 对话连续，完整对话链长度: {len(current_chain)}")
+            
+    except Exception as e:
+        print(f"⚠️ 从MemoryOS检测思维链断裂失败: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def ensure_user_memoryos(
@@ -209,7 +447,7 @@ def ensure_user_memoryos(
                 retrieval_queue_capacity=3,
                 mid_term_heat_threshold=8,
                 mid_term_similarity_threshold=0.7,
-                embedding_model_name="all-MiniLM-L6-v2",
+                embedding_model_name="/root/autodl-tmp/embedding_cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
             )
 
             memoryos_instances[user_id] = memoryos_instance
@@ -354,24 +592,25 @@ def save_chat_conversation(
 
     # 检查是否需要更新最后一条AI消息
     if update_last_ai_message and conversation_data.get("messages"):
-        # 更新最后一条AI消息
         messages = conversation_data["messages"]
-        ai_message_found = False
-        for i in range(len(messages) - 1, -1, -1):
-            if messages[i]["type"] == "assistant":
-                messages[i]["content"] = ai_response
-                messages[i]["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ai_message_found = True
-                break
-
-        # 如果没有找到AI消息，则添加一个（这种情况发生在只保存了用户消息后）
-        if not ai_message_found:
+        
+        # 检查最后一条消息是否是用户消息
+        # 如果最后一条是用户消息，说明这是新的一轮对话，应该添加新的AI回复
+        # 如果最后一条是AI消息，说明正在更新当前这轮的AI回复（流式输出中的增量更新）
+        if messages[-1]["type"] == "user":
+            # 最后一条是用户消息，添加新的AI回复
             new_ai_message = {
                 "type": "assistant",
                 "content": ai_response,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "shared_memory_enabled": shared_memory_enabled
             }
             conversation_data["messages"].append(new_ai_message)
+        elif messages[-1]["type"] == "assistant":
+            # 最后一条是AI消息，更新它（流式输出的增量更新）
+            messages[-1]["content"] = ai_response
+            messages[-1]["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            messages[-1]["shared_memory_enabled"] = shared_memory_enabled
     elif user_message_only:
         # 只添加用户消息（AI回复稍后添加）
         new_user_message = {
@@ -392,6 +631,7 @@ def save_chat_conversation(
                 "type": "assistant",
                 "content": ai_response,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "shared_memory_enabled": shared_memory_enabled
             },
         ]
 
@@ -660,16 +900,11 @@ def get_baseline_answer_prompt_no_profile(
 
 """
 
-    return f"""You are a helpful AI assistant. Please answer the user's question based on your own knowledge.
+    return f"""
 {context_section}**USER'S QUESTION:**
 ---
 {user_query}
 ---
-
-Please provide a helpful and accurate answer based on your knowledge. Keep your response clear and informative.
-
-IMPORTANT: If the user asks about previous conversation content, you CAN see and reference the conversation history provided above. You should acknowledge what was said previously and provide helpful responses based on that context.
-
 Your Answer:
 """
 
@@ -914,6 +1149,8 @@ def generate_response_with_memory(
                 )
                 if long_term_profile and long_term_profile != "None":
                     enhanced_profile_text = f"{user_profile.profile_text}\n\n**Long-term User Profile Insights (from MemoryOS):**\n{long_term_profile}"
+                    # 同步中文键值画像维度至 users.json
+                    sync_user_dimensions_to_store(user_id, long_term_profile)
 
                 # 添加短期记忆到检索结果中
                 context_result = memoryos_result.copy()
@@ -957,6 +1194,24 @@ def generate_response_with_memory(
                     user=enhanced_user_profile, task=message, peers=peers, top_k=3
                 )
 
+                # 打印最终选中的共享记忆ID（在构建提示词前）
+                try:
+                    selected_ids = [
+                        it.get("memory", {}).get("id", "NO_ID_FOUND")
+                        for it in retrieval_result.get("items", [])
+                        if isinstance(it, dict)
+                    ]
+                    if selected_ids:
+                        print(
+                            f"✅ 共享记忆已选中ID: {', '.join(selected_ids)}"
+                        )
+                    else:
+                        print(
+                            "ℹ️ 共享记忆未选中任何条目（为空或被QC过滤）"
+                        )
+                except Exception as log_err:
+                    print(f"⚠️ 打印共享记忆ID失败: {log_err}")
+
                 if retrieval_result["items"]:
                     shared_memory_context = retrieve_pipeline.build_prompt_blocks(
                         retrieval_result["items"]
@@ -968,6 +1223,9 @@ def generate_response_with_memory(
 
             except Exception as e:
                 print(f"检索共享记忆失败: {e}")
+
+        else:
+            print("ℹ️ 共享记忆未开启（shared_memory_enabled=False）")
 
         # 根据记忆状态选择提示词 (与原始项目逻辑一致)
         if (
@@ -1056,7 +1314,7 @@ def get_shared_memories():
     try:
         data = request.get_json()
         username = data.get("username")
-        limit = data.get("limit", 50)
+        limit = data.get("limit", 10000)  # 默认限制改为10000，可以获取所有共享记忆
 
         print("\n📊 获取共享记忆请求:")
         print(f"  - 用户名: {username}")
@@ -1069,9 +1327,17 @@ def get_shared_memories():
         all_memories = store.list_memories()
         print(f"  - 总记忆数量: {len(all_memories)}")
 
+        # 按照创建时间从新到旧排序
+        all_memories_sorted = sorted(
+            all_memories, 
+            key=lambda mem: mem.created_at if mem.created_at else 0, 
+            reverse=True  # 降序排列，最新的在前面
+        )
+        print(f"  - 已按时间倒序排序")
+
         # 转换为字典格式
         memories_list = []
-        for i, mem in enumerate(all_memories[:limit]):
+        for i, mem in enumerate(all_memories_sorted[:limit]):
             try:
                 # 将时间戳转换为可读格式
                 timestamp_str = (
@@ -1089,20 +1355,27 @@ def get_shared_memories():
                 else:
                     content = "无内容"
 
+                # 获取focus_query
+                focus_query = ""
+                if hasattr(mem, "meta") and mem.meta:
+                    focus_query = mem.meta.get("focus_query", "")
+                
                 memory_data = {
                     "id": mem.id,
                     "user_id": mem.source_user_id,
                     "content": content,
                     "timestamp": timestamp_str,
+                    "created_at": mem.created_at,  # 添加原始时间戳用于调试
                     "source": mem.meta.get("source", "conversation")
                     if hasattr(mem, "meta") and mem.meta
                     else "conversation",
+                    "focus_query": focus_query
                 }
                 memories_list.append(memory_data)
 
                 if i < 3:  # 打印前3条记忆的详细信息用于调试
                     print(
-                        f"  - 记忆 {i + 1}: ID={mem.id}, 用户={mem.source_user_id}, 内容长度={len(memory_data['content'])}"
+                        f"  - 记忆 {i + 1}: ID={mem.id}, 用户={mem.source_user_id}, 时间={timestamp_str}, 内容长度={len(memory_data['content'])}"
                     )
 
             except Exception as mem_error:
@@ -1159,6 +1432,40 @@ def get_memory_file():
         print(f"读取记忆文件失败: {e}")
         import traceback
 
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/get_user_dimensions", methods=["GET"])
+def get_user_dimensions():
+    """获取统一后的结构化用户画像维度（按三大类分组，仅显示已存在的小维度）。"""
+    try:
+        username = request.args.get("username")
+        if not username:
+            return jsonify({"success": False, "error": "缺少用户名"}), 400
+
+        user_profile = store.get_user(username)
+        grouped = None
+        if user_profile and getattr(user_profile, "profile_dimensions", None):
+            grouped = user_profile.profile_dimensions
+        else:
+            # fallback: 从长期画像文本即时解析
+            user_dir = os.path.join(MEMORYOS_DATA_DIR, username, "users", username)
+            ltm_path = os.path.join(user_dir, "long_term_user.json")
+            if os.path.exists(ltm_path):
+                with open(ltm_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                user_profiles = data.get("user_profiles", {})
+                profile = user_profiles.get(username, {})
+                ltm_text = profile.get("data", "")
+                grouped = extract_profile_dimensions_from_text(ltm_text)
+            else:
+                grouped = {v: {} for v in DIMENSION_GROUPS_CN.values()}
+
+        return jsonify({"success": True, "dimensions": grouped, "groups": DIMENSION_GROUPS_CN})
+    except Exception as e:
+        print(f"获取用户画像维度失败: {e}")
+        import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1254,6 +1561,8 @@ def chat_direct():
                     )
                     if long_term_profile and long_term_profile != "None":
                         enhanced_profile_text = f"{user_profile.profile_text}\n\n**Long-term User Profile Insights:**\n{long_term_profile}"
+                        # 同步中文键值画像维度至 users.json
+                        sync_user_dimensions_to_store(username, long_term_profile)
 
                     context_result = memoryos_result.copy()
                     short_term_history = memoryos_instance.short_term_memory.get_all()
@@ -1277,12 +1586,32 @@ def chat_direct():
                     retrieval_result = retrieve_pipeline.retrieve(
                         user=enhanced_user_profile, task=message, peers=peers, top_k=3
                     )
+                    # 打印最终选中的共享记忆ID（在构建提示词前）
+                    try:
+                        selected_ids = [
+                            it.get("memory", {}).get("id", "NO_ID_FOUND")
+                            for it in retrieval_result.get("items", [])
+                            if isinstance(it, dict)
+                        ]
+                        if selected_ids:
+                            print(
+                                f"✅ 共享记忆已选中ID: {', '.join(selected_ids)}"
+                            )
+                        else:
+                            print(
+                                "ℹ️ 共享记忆未选中任何条目（为空或被QC过滤）"
+                            )
+                    except Exception as log_err:
+                        print(f"⚠️ 打印共享记忆ID失败: {log_err}")
+
                     if retrieval_result["items"]:
                         shared_memory_context = retrieve_pipeline.build_prompt_blocks(
                             retrieval_result["items"]
                         )
                 except Exception as e:
                     print(f"⚠️ 获取共享记忆失败: {e}")
+            else:
+                print("ℹ️ 共享记忆未开启（shared_memory_enabled=False）")
 
             # 构建提示词
             if (
@@ -1385,6 +1714,13 @@ def chat_direct():
                         memoryos_instance = memoryos_instances[username]
                         memoryos_instance.add_memory(message, response_to_save)
                         print("✅ 中断的对话已保存到短期记忆")
+                        
+                        # 检测思维链断裂并发送到共享记忆
+                        if shared_memory_enabled and full_response.strip():
+                            try:
+                                check_and_store_chain_break_from_memoryos(username, memoryos_instance)
+                            except Exception as e:
+                                print(f"⚠️ 思维链检测失败: {e}")
 
                     # 保存对话到文件 - 更新最后一条AI消息
                     saved_conversation_id = save_chat_conversation(
@@ -1397,15 +1733,6 @@ def chat_direct():
                         personal_memory_enabled,
                         update_last_ai_message=True,
                     )
-
-                    # 检测思维链断裂（只有AI有回复时才检测）
-                    if shared_memory_enabled and full_response.strip():
-                        try:
-                            check_and_store_chain_break(
-                                username, message, full_response
-                            )
-                        except Exception as e:
-                            print(f"⚠️ 思维链检测失败: {e}")
 
                     print(
                         f"✅ 中断的消息已正常保存，conversation_id: {saved_conversation_id}"
@@ -1425,6 +1752,7 @@ def chat_direct():
                         # 检查 choices 是否为空
                         if chunk.choices and len(chunk.choices) > 0:
                             delta = chunk.choices[0].delta
+                            content_sent = False
                             if delta.content:
                                 content = delta.content
                                 full_response += content
@@ -1449,6 +1777,13 @@ def chat_direct():
 
                                 # 发送SSE格式数据
                                 yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+                                content_sent = True
+                            
+                            # 🔥 检查是否是最后一个chunk（finish_reason不为None表示结束）
+                            if chunk.choices[0].finish_reason is not None:
+                                print(f"✅ 检测到流式输出结束，finish_reason: {chunk.choices[0].finish_reason}, 最后内容已发送: {content_sent}")
+                                # 🔥 确保最后一个chunk的内容已经发送后再跳出循环
+                                break
                     except (GeneratorExit, StopIteration) as e:
                         # 客户端断开连接
                         print(f"🛑 检测到客户端断开连接: {e}")
@@ -1505,43 +1840,50 @@ def chat_direct():
                     pass
                 return
 
-            # 发送结束标记
-            yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
-
             print(f"✅ 流式输出完成，总长度: {len(full_response)} 字符")
-
-            # 只有在正常完成时才保存记忆和对话（不包含被中断的情况）
-            if full_response.strip():  # 确保有内容才保存
+            print(f"🔥 最后50个字符: {full_response[-50:] if len(full_response) > 50 else full_response}")
+            
+            # 先快速保存对话（更新最后一条AI消息）
+            saved_conversation_id = current_conversation_id
+            if full_response.strip():
+                try:
+                    saved_conversation_id = save_chat_conversation(
+                        username,
+                        current_conversation_id,
+                        message,
+                        full_response,
+                        model,
+                        shared_memory_enabled,
+                        personal_memory_enabled,
+                        update_last_ai_message=True,
+                    )
+                except Exception as e:
+                    print(f"⚠️ 保存对话失败: {e}")
+            
+            # 🚀 立即发送完成信号和conversation_id，不要等待其他操作
+            yield f"data: {json.dumps({'done': True, 'conversation_id': saved_conversation_id or current_conversation_id}, ensure_ascii=False)}\n\n"
+            
+            # 然后再做耗时的保存操作（这些操作在后台完成，不影响前端显示）
+            if full_response.strip():
                 # 保存到个人记忆
                 if username in memoryos_instances:
                     try:
                         memoryos_instance = memoryos_instances[username]
                         memoryos_instance.add_memory(message, full_response)
                         print("✅ 对话已保存到短期记忆")
+                        
+                        # 检测思维链断裂并发送到共享记忆
+                        if shared_memory_enabled:
+                            try:
+                                check_and_store_chain_break_from_memoryos(username, memoryos_instance)
+                                print("✅ 思维链检测完成")
+                            except Exception as e:
+                                print(f"⚠️ 思维链检测失败: {e}")
                     except Exception as e:
                         print(f"❌ 保存记忆失败: {e}")
-
-                # 保存对话 - 更新最后一条AI消息
-                saved_conversation_id = save_chat_conversation(
-                    username,
-                    current_conversation_id,
-                    message,
-                    full_response,
-                    model,
-                    shared_memory_enabled,
-                    personal_memory_enabled,
-                    update_last_ai_message=True,
-                )
-
-                # 检测思维链断裂
-                if shared_memory_enabled:
-                    try:
-                        check_and_store_chain_break(username, message, full_response)
-                    except Exception as e:
-                        print(f"⚠️ 思维链检测失败: {e}")
-
-                # 发送对话ID
-                yield f"data: {json.dumps({'conversation_id': saved_conversation_id or current_conversation_id}, ensure_ascii=False)}\n\n"
+                        print(f"错误类型: {type(e).__name__}")
+                        import traceback
+                        print(f"详细错误信息: {traceback.format_exc()}")
             else:
                 print("⚠️ 流式输出为空，跳过保存操作")
 

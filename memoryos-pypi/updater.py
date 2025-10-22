@@ -115,40 +115,36 @@ class Updater:
         temp_last_page_in_batch = self.last_evicted_page_for_continuity # Carry over from previous batch if any
 
         for qa_pair in evicted_qas:
+            # Preserve existing page_id and links from short-term memory
             current_page_obj = {
-                "page_id": generate_id("page"),
+                "page_id": qa_pair.get("page_id") or generate_id("page"),  # Preserve existing ID
                 "user_input": qa_pair.get("user_input", ""),
                 "agent_response": qa_pair.get("agent_response", ""),
                 "timestamp": qa_pair.get("timestamp", get_timestamp()),
                 "preloaded": False, # Default for new pages from short-term
                 "analyzed": False,  # Default for new pages from short-term
-                "pre_page": None,
-                "next_page": None,
-                "meta_info": None
+                "pre_page": qa_pair.get("pre_page"),  # Preserve existing link
+                "next_page": qa_pair.get("next_page"),  # Preserve existing link
+                "meta_info": qa_pair.get("meta_info")  # Preserve existing meta_info
             }
             
-            is_continuous = check_conversation_continuity(temp_last_page_in_batch, current_page_obj, self.client, model=self.llm_model)
-            
-            if is_continuous and temp_last_page_in_batch:
-                current_page_obj["pre_page"] = temp_last_page_in_batch["page_id"]
-                # The actual next_page for temp_last_page_in_batch will be set when it's stored in mid-term
-                # or if it's already there, it needs an update. This linking is tricky.
-                # For now, we establish the link from current to previous.
-                # MidTermMemory's update_page_connections can fix the other side if pages are already there.
+            # Only update links if not already set from short-term memory
+            # This preserves the chain links established when pages were in short-term
+            if not current_page_obj.get("pre_page"):
+                is_continuous = check_conversation_continuity(temp_last_page_in_batch, current_page_obj, self.client, model=self.llm_model)
                 
-                # Meta info generation based on continuity
-                last_meta = temp_last_page_in_batch.get("meta_info")
-                new_meta = generate_page_meta_info(last_meta, current_page_obj, self.client, model=self.llm_model)
-                current_page_obj["meta_info"] = new_meta
-                # If temp_last_page_in_batch was part of a chain, its meta_info and subsequent ones should update.
-                # This implies that meta_info should perhaps be updated more globally or propagated.
-                # For now, new_meta applies to current_page_obj and potentially its chain.
-                # We can call _update_linked_pages_meta_info if temp_last_page_in_batch is in mid-term already.
-                if temp_last_page_in_batch.get("page_id") and self.mid_term_memory.get_page_by_id(temp_last_page_in_batch["page_id"]):
-                    self._update_linked_pages_meta_info(temp_last_page_in_batch["page_id"], new_meta)
-            else:
-                # Start of a new chain or no previous page
-                current_page_obj["meta_info"] = generate_page_meta_info(None, current_page_obj, self.client, model=self.llm_model)
+                if is_continuous and temp_last_page_in_batch:
+                    current_page_obj["pre_page"] = temp_last_page_in_batch["page_id"]
+            
+            # Generate or update meta_info
+            if not current_page_obj.get("meta_info"):
+                if current_page_obj.get("pre_page"):
+                    # Has a link, generate meta based on context
+                    last_meta = temp_last_page_in_batch.get("meta_info") if temp_last_page_in_batch else None
+                    current_page_obj["meta_info"] = generate_page_meta_info(last_meta, current_page_obj, self.client, model=self.llm_model)
+                else:
+                    # Start of a chain
+                    current_page_obj["meta_info"] = generate_page_meta_info(None, current_page_obj, self.client, model=self.llm_model)
             
             current_batch_pages.append(current_page_obj)
             temp_last_page_in_batch = current_page_obj # Update for the next iteration in this batch
