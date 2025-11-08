@@ -6,12 +6,12 @@ from typing import Dict, List, Tuple
 import numpy as np
 from tqdm import tqdm
 
-from config import Config
-from embedding import Embedder
-from models import MemoryItem, UserProfile
-from storage import JsonStore
-from .utils import l2_normalize, softmax, entropy, js_divergence
-from llm_qc import LLMQC
+from sharememory_user.config import Config
+from sharememory_user.embedding import Embedder
+from sharememory_user.models import MemoryItem, UserProfile
+from sharememory_user.storage import JsonStore
+from sharememory_user.utils import l2_normalize, softmax, entropy, js_divergence
+from sharememory_user.llm_qc import LLMQC
 
 
 @dataclass
@@ -212,8 +212,9 @@ class RetrievePipeline:
             "peer": p_peer.tolist(),
         }
 
-    def build_prompt_blocks(self, items: List[Dict[str, any]]) -> str:
+    def build_prompt_blocks(self, items: List[Dict[str, any]], conversation_id: str = None, username: str = None) -> str:
         parts: List[str] = []
+        selected_ids: List[str] = []
         for i, it in enumerate(items, start=1):
             mem = it["memory"]
             cot = mem.get("cot_text", "")
@@ -228,6 +229,10 @@ class RetrievePipeline:
             print(f"  - Type of mem: {type(mem)}")
             print(f"  - Keys in mem: {list(mem.keys())}")
             print("##############################################")
+            # Record selected memory id for final summary print
+            memory_id = mem.get('id', 'NO_ID_FOUND')
+            selected_ids.append(memory_id)
+            print(f"  - 添加记忆ID到selected_ids: {memory_id}")
             # Get the static profile of the memory creator
             creator_profile = ""
             if source_user_id:
@@ -239,8 +244,8 @@ class RetrievePipeline:
             parts.append(f"### Memory #{i}")
             if focus_query:
                 parts.append(f"**Focus Query:** {focus_query}")
-            if creator_profile:
-                parts.append(f"**Created by:** {creator_profile}")
+            # if creator_profile:
+            #     parts.append(f"**Created by:** {creator_profile}")
             # parts.append(f"**Content:** {cot}")
             parts.append("**KG:**")
             for e in kg:
@@ -257,4 +262,90 @@ class RetrievePipeline:
                     rel = e.get("relation", "rel")
                     tail = e.get("tail", "?")
                     f.write(f"- ({head}, {rel}, {tail})\n")
+        # Final concise log of memory IDs added to the prompt
+        if selected_ids:
+            try:
+                print(f"✅ 最终加入提示词的共享记忆ID: {', '.join(selected_ids)}")
+            except Exception:
+                # Fallback to avoid any unexpected printing errors
+                print("✅ 最终加入提示词的共享记忆ID:", selected_ids)
+        
+        # 记忆ID的保存现在通过save_chat_conversation函数完成
+        print(f"\n🔧 [build_prompt_blocks] 记忆ID将通过save_chat_conversation函数保存:")
+        print(f"  - selected_ids: {selected_ids}")
+        print(f"  - conversation_id: {conversation_id}")
+        print(f"  - username: {username}")
+        
         return "\n".join(parts)
+    
+    def _save_used_memories_to_conversation(self, conversation_id: str, memory_ids: List[str], username: str) -> None:
+        """保存对话中使用的共享记忆ID和focus_query"""
+        import json
+        import os
+        from datetime import datetime
+        
+        try:
+            print(f"\n🔧 [pipeline_retrieve] 开始保存使用的记忆ID:")
+            print(f"  - 对话ID: {conversation_id}")
+            print(f"  - 用户名: {username}")
+            print(f"  - 记忆ID列表: {memory_ids}")
+            
+            # 构建对话文件路径
+            # 从当前文件路径: /root/autodl-tmp/service/agent-share/sharememory_user/pipeline_retrieve.py
+            # 需要到达: /root/autodl-tmp/service/agent-share/eval/memoryos_data
+            # 当前文件: __file__ = /root/autodl-tmp/service/agent-share/sharememory_user/pipeline_retrieve.py
+            # 上一级: os.path.dirname(__file__) = /root/autodl-tmp/service/agent-share/sharememory_user
+            # 上两级: os.path.dirname(os.path.dirname(__file__)) = /root/autodl-tmp/service/agent-share
+            # 目标: /root/autodl-tmp/service/agent-share/eval/memoryos_data
+            MEMORYOS_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "eval", "memoryos_data")
+            conversation_file = os.path.join(
+                MEMORYOS_DATA_DIR, "default_project", "users", username, f"{conversation_id}.json"
+            )
+            print(f"  - 对话文件路径: {conversation_file}")
+            print(f"  - 对话文件是否存在: {os.path.exists(conversation_file)}")
+            
+            if os.path.exists(conversation_file):
+                with open(conversation_file, "r", encoding="utf-8") as f:
+                    conversation_data = json.load(f)
+                
+                # 添加使用的记忆ID到对话数据中
+                if "used_memories" not in conversation_data:
+                    conversation_data["used_memories"] = []
+                
+                # 获取所有记忆，用于查找focus_query
+                all_memories = self.store.list_memories()
+                memory_id_to_focus_query = {}
+                for memory in all_memories:
+                    memory_id_to_focus_query[memory.id] = memory.focus_query
+                
+                # 将新的记忆ID和focus_query添加到列表中（避免重复）
+                existing_memory_ids = set()
+                for existing_memory in conversation_data["used_memories"]:
+                    if isinstance(existing_memory, dict):
+                        existing_memory_ids.add(existing_memory.get("id"))
+                    else:
+                        existing_memory_ids.add(existing_memory)
+                
+                for memory_id in memory_ids:
+                    if memory_id not in existing_memory_ids:
+                        focus_query = memory_id_to_focus_query.get(memory_id, "")
+                        memory_info = {
+                            "id": memory_id,
+                            "focus_query": focus_query
+                        }
+                        conversation_data["used_memories"].append(memory_info)
+                        print(f"✅ [pipeline_retrieve] 保存记忆ID: {memory_id}, focus_query: {focus_query[:50]}...")
+                    else:
+                        print(f"⚠️ [pipeline_retrieve] 记忆ID已存在，跳过: {memory_id}")
+                
+                # 保存更新后的对话数据
+                with open(conversation_file, "w", encoding="utf-8") as f:
+                    json.dump(conversation_data, f, ensure_ascii=False, indent=2)
+                    
+                print(f"✅ [pipeline_retrieve] 已保存使用的记忆ID和focus_query到对话: {conversation_id}")
+            else:
+                print(f"⚠️ [pipeline_retrieve] 对话文件不存在: {conversation_file}")
+        except Exception as e:
+            print(f"⚠️ [pipeline_retrieve] 保存使用的记忆ID失败: {e}")
+            import traceback
+            traceback.print_exc()

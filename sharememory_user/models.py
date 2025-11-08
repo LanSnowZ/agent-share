@@ -9,6 +9,8 @@ import time
 class UserProfile:
     user_id: str
     profile_text: str
+    # Structured dimensions grouped by three major categories -> { subDimensionCN: levelCN }
+    profile_dimensions: Optional[Dict[str, Dict[str, str]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

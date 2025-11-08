@@ -13,7 +13,7 @@ class Config:
     embed_use_hf: bool = os.environ.get("SMU_EMBED_USE_HF", "1") == "1"
     embed_model_name: str = os.environ.get(
         "SMU_EMBED_MODEL",
-        "memoryos_demo_v5/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+        "/root/autodl-tmp/embedding_cache/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
     )
     embed_dimension: int = int(os.environ.get("SMU_EMBED_DIM", "1024"))
     embed_use_fp16: bool = os.environ.get("SMU_EMBED_USE_FP16", "1") == "1"
@@ -23,10 +23,10 @@ class Config:
         "SMU_LLM_PROVIDER", "openai"
     )  # "openai" or "none"
     openai_api_key: Optional[str] = os.environ.get(
-        "OPENAI_API_KEY", "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"
+        "OPENAI_API_KEY", "sk-YBJCZ71v8Eb58e95123FT3BLbkFJa0fA99fb651B4f5792D4"
     )
     openai_api_base: Optional[str] = os.environ.get(
-        "OPENAI_API_BASE", "https://apic1.ohmycdn.com/v1"
+        "OPENAI_API_BASE", "https://cn2us02.opapi.win/v1"
     )
     llm_model_name: str = os.environ.get("SMU_LLM_MODEL", "gpt-5-chat-latest")
 

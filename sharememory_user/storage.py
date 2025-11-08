@@ -68,7 +68,17 @@ class JsonStore:
     def add_memories(self, items: Iterable[MemoryItem]) -> None:
         data = self._read_json(self.cfg.memory_path)
         memories: List[Dict[str, Any]] = data.get("memories", [])
-        memories.extend([m.to_dict() for m in items])
+        new_items = [m.to_dict() for m in items]
+        # Print concise logs for each new memory
+        for m in new_items:
+            mem_id = m.get("id", "<no-id>")
+            fq = m.get("focus_query", "")
+            src = m.get("source_user_id", "")
+            print(f"🆕 新增共享记忆: id={mem_id}, source={src}")
+            if fq:
+                preview = fq[:160].replace("\n", " ")
+                print(f"   ↳ focus_query: {preview}")
+        memories.extend(new_items)
         self._write_json(self.cfg.memory_path, {"memories": memories})
 
     def update_memory(self, item: MemoryItem) -> bool:
@@ -76,12 +86,19 @@ class JsonStore:
         data = self._read_json(self.cfg.memory_path)
         memories: List[Dict[str, Any]] = data.get("memories", [])
         updated = False
+        idx_to_move = None
         for i, mem in enumerate(memories):
             if mem.get("id") == item.id:
                 memories[i] = item.to_dict()
+                idx_to_move = i
                 updated = True
                 break
         if updated:
+            # Move the updated memory to the front (most recently updated on top)
+            if idx_to_move is not None and 0 <= idx_to_move < len(memories):
+                mem_dict = memories.pop(idx_to_move)
+                memories.insert(0, mem_dict)
+                print(f"📌 已置顶更新的共享记忆: id={item.id}")
             self._write_json(self.cfg.memory_path, {"memories": memories})
         return updated
 

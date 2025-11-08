@@ -6,6 +6,7 @@ __marimo__/
 *.ipynb_checkpoints/
 log/
 .venv/
+databak/
 
 # local
 /local/
@@ -29,6 +30,9 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.env
+eval/memoryos_data/
+user.json
 
 # File
 .DS_Store

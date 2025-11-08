@@ -1,6 +1,0 @@
-{
-  "openai_api_key": "sk-S4qfmJKyWxnz8xJcRa5tdlDbLloFaMY95jBzSNDQILwrI8rt",
-  "openai_base_url": "https://ai.nengyongai.cn/v1",
-  "llm_model": "gpt-4o-mini",
-  "user_profile": "用户 test"
-}

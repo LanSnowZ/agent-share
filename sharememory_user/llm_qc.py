@@ -31,6 +31,11 @@ COT_EXTRACTION_SYSTEM_PROMPT = """你是技术讨论总结专家。
 请从以下文本中提炼核心推理过程，产出简洁的结构化大纲（Chain-of-Thought 风格）。
 强调可复用步骤，保持精炼，聚焦关键点。
 
+**重要要求**：
+- 不要泄露任何人物的身份信息（如姓名、用户名、具体身份等）
+- 只提取抽象的经验、方法、步骤和知识
+- 专注于技术内容本身，避免涉及个人隐私信息
+
 **输出格式**：仅输出一个 JSON 对象。
 `{"cot": "<string: 结构化的 COT 大纲>"}`
 """
@@ -39,6 +44,11 @@ KG_EXTRACTION_SYSTEM_PROMPT = """你是知识图谱专家。
 请从以下文本中抽取有意义的实体与关系，并以三元组表示。
 聚焦技术实体、工具与概念。
 
+**重要要求**：
+- 不要泄露任何人物的身份信息（如姓名、用户名、具体身份等）
+- 只提取技术相关的实体和关系，避免涉及个人隐私信息
+- 专注于技术内容本身，提取抽象的知识结构
+
 **输出格式**：仅输出一个 JSON 对象，包含三元组列表。
 `{"kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
 """
@@ -46,6 +56,11 @@ KG_EXTRACTION_SYSTEM_PROMPT = """你是知识图谱专家。
 QUERY_EXTRACTION_SYSTEM_PROMPT = """你是查询归纳专家。
 请分析以下文本，抽取其所针对的核心问题（或任务）。
 问题需简洁，能概括主要意图。
+
+**重要要求**：
+- 不要泄露任何人物的身份信息（如姓名、用户名、具体身份等）
+- 只提取抽象的技术问题或任务，避免涉及个人隐私信息
+- 专注于技术内容本身，确保查询的通用性和可复用性
 
 **输出格式**：仅输出一个 JSON 对象。
 `{"query": "<string: 抽取出的查询>"}`
@@ -73,6 +88,12 @@ FOCUS_USEFULNESS_BATCH_SYSTEM_PROMPT = """你是一名助手，判断哪些记�
 COT_MERGING_SYSTEM_PROMPT = """你是结构化推理合并专家。
 请将以下两份 Chain-of-Thought 总结合并为一份连贯、完整的总结。
 
+**重要要求**：
+- 不要泄露任何人物的身份信息（如姓名、用户名、具体身份等）
+- 只提取和合并抽象的经验、方法、步骤和知识
+- 专注于技术内容本身，避免涉及个人隐私信息
+- 确保合并后的内容保持通用性和可复用性
+
 **输出格式**：仅输出一个 JSON 对象。
 `{"merged_cot": "<string: 合并后的总结>"}`
 """
@@ -80,8 +101,26 @@ COT_MERGING_SYSTEM_PROMPT = """你是结构化推理合并专家。
 KG_MERGING_SYSTEM_PROMPT = """你是知识图谱合并专家。
 请将以下两份知识图谱列表进行合并，去重并整合信息。
 
+**重要要求**：
+- 不要泄露任何人物的身份信息（如姓名、用户名、具体身份等）
+- 只合并技术相关的实体和关系，避免涉及个人隐私信息
+- 专注于技术内容本身，确保合并后的知识图谱保持通用性
+
 **输出格式**：仅输出一个 JSON 对象。
 `{"merged_kg": [{"head": "<实体>", "relation": "<关系>", "tail": "<实体>"}]}`
+"""
+
+QUERY_MERGING_SYSTEM_PROMPT = """你是查询合并专家。
+请将以下两个 focus_query 合并为一个新的、更全面的查询描述。
+新的查询应该涵盖两个查询的核心意图，去重并保持简洁。
+
+**重要要求**：
+- 不要泄露任何人物的身份信息（如姓名、用户名、具体身份等）
+- 只合并抽象的技术问题或任务，避免涉及个人隐私信息
+- 专注于技术内容本身，确保合并后的查询保持通用性和可复用性
+
+**输出格式**：仅输出一个 JSON 对象。
+`{"merged_query": "<string: 合并后的查询>"}`
 """
 
 def get_user_prompt(text: str) -> str:
@@ -96,6 +135,9 @@ def get_cot_merging_prompt(cot1: str, cot2: str) -> str:
 
 def get_kg_merging_prompt(kg1: List[Dict], kg2: List[Dict]) -> str:
     return f"**KG 1：**\n{json.dumps(kg1)}\n\n**KG 2：**\n{json.dumps(kg2)}\n\n请合并上述知识图谱："
+
+def get_query_merging_prompt(query1: str, query2: str) -> str:
+    return f"**Query 1：**\n{query1}\n\n**Query 2：**\n{query2}\n\n请合并以上两个查询："
 
 
 class LLMQC:
@@ -167,6 +209,57 @@ class LLMQC:
 
         # Fallback to heuristic for any failure or if provider is "none"
         return self._run_heuristic(text, source_user_id)
+
+    def extract_query_from_user_questions(self, text: str) -> str:
+        """Extracts a concise query from user-only questions/turns within the dialog text.
+
+        Heuristics to isolate user turns:
+        - Prefer lines prefixed by role markers like "User:", "用户:", "问:", "Q:", "Question:".
+        - Otherwise, prefer lines ending with a question mark ("?" or "？").
+        Falls back to the original text if no user-only content is detected.
+        """
+        user_only = self._extract_user_turns(text)
+
+        # LLM path
+        if self._provider == "openai" and self._client:
+            try:
+                user_prompt = get_user_prompt(user_only)
+                query_data = self._call_llm(QUERY_EXTRACTION_SYSTEM_PROMPT, user_prompt)
+                query = query_data.get("query", "").strip()
+                if query:
+                    return query
+            except Exception:
+                # Fall through to heuristic
+                pass
+
+        # Heuristic fallback
+        return self._build_query(user_only)
+
+    def _extract_user_turns(self, text: str) -> str:
+        """Best-effort extraction of user-only utterances/questions from a dialog transcript."""
+        lines = [l for l in text.splitlines()]
+        kept: List[str] = []
+        # Updated regex to handle formats like "User (timestamp):" or "User:"
+        role_prefix_re = re.compile(r"^(user|用户|question|问|提问|q)\s*(?:\([^)]*\))?\s*[:：]\s*", flags=re.I)
+        for line in lines:
+            s = line.strip()
+            if not s:
+                continue
+            # Role-labeled user turns
+            m = role_prefix_re.match(s)
+            if m:
+                # Extract only the message content after the role prefix
+                user_message = role_prefix_re.sub("", s).strip()
+                if user_message:  # Only add non-empty messages
+                    kept.append(user_message)
+                continue
+            # Question-like lines
+            if s.endswith("?") or s.endswith("？"):
+                kept.append(s)
+        # If nothing matched, return original text as a conservative fallback
+        if not kept:
+            return text
+        return "\n".join(kept)
 
     def match_queries(self, base_query: str, candidate_queries: List[str]) -> List[bool]:
         """Uses LLM to find which candidate queries match the base query."""
@@ -252,14 +345,25 @@ class LLMQC:
         if self._provider != "openai" or not self._client:
             return kg1 + kg2  # Fallback
         try:
-            kg1_str = json.dumps(kg1)
-            kg2_str = json.dumps(kg2)
-            user_prompt = get_kg_merging_prompt(kg1_str, kg2_str)
+            # 直接传对象，由 get_kg_merging_prompt 负责序列化
+            user_prompt = get_kg_merging_prompt(kg1, kg2)
             response = self._call_llm(KG_MERGING_SYSTEM_PROMPT, user_prompt)
             return response.get("merged_kg", [])
         except Exception as e:
             warnings.warn(f"OpenAI call for KG merging failed: {e}. Defaulting to concatenation.")
             return kg1 + kg2
+
+    def merge_query(self, query1: str, query2: str) -> str:
+        """Merges two focus_query strings using an LLM."""
+        if self._provider != "openai" or not self._client:
+            return f"{query1}；{query2}"  # Fallback: simple concatenation with semicolon
+        try:
+            user_prompt = get_query_merging_prompt(query1, query2)
+            response = self._call_llm(QUERY_MERGING_SYSTEM_PROMPT, user_prompt)
+            return response.get("merged_query", "")
+        except Exception as e:
+            warnings.warn(f"OpenAI call for query merging failed: {e}. Defaulting to concatenation.")
+            return f"{query1}；{query2}"
 
     def _run_heuristic(self, text: str, source_user_id: str) -> QCResult:
         reuse, depth, focus = self._heuristic_scores(text)

@@ -7,6 +7,7 @@ import json
 import os
 import inspect
 from functools import wraps
+import re
 try:
     from . import prompts # 尝试相对导入
 except ImportError:
@@ -255,11 +256,55 @@ def gpt_generate_multi_summary(text, client: OpenAIClient, model="gpt-4o-mini"):
     ]
     print("Calling LLM to generate multi-topic summary...")
     response_text = client.chat_completion(model=model, messages=messages)
+
+    # --- Sanitize common LLM formats (strip markdown fences, extract JSON array) ---
+    def _extract_json_array(s: str) -> str:
+        if not s:
+            return s
+        s = s.strip()
+        # Case 1: fenced block ```json ... ``` or ``` ... ```
+        fenced = re.search(r"```(?:json)?\s*([\s\S]*?)```", s, re.IGNORECASE)
+        if fenced:
+            s = fenced.group(1).strip()
+        # Case 2: leading/trailing backticks or language hints
+        if s.startswith("```") and s.endswith("```"):
+            s = s[3:-3].strip()
+        # Case 3: Extract first JSON array segment if wrapper text exists
+        start = s.find("[")
+        end = s.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            return s[start : end + 1].strip()
+        return s
+
+    response_text_sanitized = _extract_json_array(response_text)
     try:
-        summaries = json.loads(response_text)
-    except json.JSONDecodeError:
-        print(f"Warning: Could not parse multi-summary JSON: {response_text}")
+        summaries = json.loads(response_text_sanitized)
+        # 验证JSON结构，确保包含必要的字段
+        if not isinstance(summaries, list):
+            print(f"Warning: Expected JSON array, got {type(summaries)}: {response_text_sanitized}")
+            summaries = []
+        else:
+            # 验证每个summary项的结构
+            valid_summaries = []
+            for i, summary_item in enumerate(summaries):
+                if not isinstance(summary_item, dict):
+                    print(f"Warning: Summary item {i} is not a dict: {summary_item}")
+                    continue
+                if "theme" not in summary_item:
+                    print(f"Warning: Summary item {i} missing 'theme' field: {summary_item}")
+                    continue
+                valid_summaries.append(summary_item)
+            summaries = valid_summaries
+    except json.JSONDecodeError as e:
+        print(f"Error: Could not parse multi-summary JSON: {e}")
+        print(f"Raw response: {response_text}")
+        print(f"Sanitized: {response_text_sanitized}")
         summaries = [] # Return empty list or a default structure
+    except Exception as e:
+        print(f"Error processing multi-summary response: {e}")
+        print(f"Raw response: {response_text}")
+        print(f"Sanitized: {response_text_sanitized}")
+        summaries = []
     return {"input": text, "summaries": summaries}
 
 

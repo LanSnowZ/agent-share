@@ -72,7 +72,7 @@ SUMMARIZE_DIALOGS_USER_PROMPT = "请基于以下对话生成简要主题总结�
 MULTI_SUMMARY_SYSTEM_PROMPT = "你是对话主题分析专家。请生成简明的小主题总结，主题不超过两个，尽量简短。"
 MULTI_SUMMARY_USER_PROMPT = ("请分析以下对话，并在需要时生成不超过两个小主题的极简总结。\n"
                            "每个总结尽量短，仅包含主题词与简述。输出为 JSON 数组：\n"
-                           "[\n  {\"theme\": \"主题\", \"keywords\": [\"关键词1\", \"关键词2\"], \"content\": \"简述\"}\n]\n"
+                           "[\n  {{\"theme\": \"主题\", \"keywords\": [\"关键词1\", \"关键词2\"], \"content\": \"简述\"}}\n]\n"
                            "\n对话内容：\n{text}")
 
 # Prompt for personality analysis (NEW TEMPLATE)
@@ -87,9 +87,16 @@ Focus only on the user's preferences and traits for the personality analysis sec
 仅输出“用户画像”部分。
 """
 
-PERSONALITY_ANALYSIS_USER_PROMPT = """请分析下方最新一轮用户-AI 对话，并基于 90 个性格/偏好维度更新用户画像。
+PERSONALITY_ANALYSIS_USER_PROMPT = """请分析下方最新一轮用户-AI 对话，并基于 95 个性格/偏好维度更新用户画像。
 
-Here are the 90 dimensions and their explanations:
+Here are the 95 dimensions and their explanations:
+
+[Basic Information]
+Name: 用户的姓名（如对话中提及）。
+Gender: 用户的性别（如对话中提及）。
+Age: 用户的年龄（如对话中提及）。
+Occupation: 用户的职业（如对话中提及）。
+Work Details: 用户的工作详情、所在行业或具体职位（如对话中提及）。
 
 [Psychological Model (Basic Needs & Personality)]
 Extraversion: 偏好社交活动。
@@ -150,9 +157,18 @@ Practicality: 偏好可操作建议 vs. 理论讨论。
 
 **任务说明：**
 1. 阅读下方已有用户画像；
-2. 基于上述 90 个维度在新对话中寻找证据；
+2. 基于上述 95 个维度在新对话中寻找证据；
 3. 将发现整合到完整的用户画像中；
-4. 对每个可识别维度，采用格式：维度（Level: High/Medium/Low）；
+4. **严格遵守格式规范**，对每个可识别维度：
+   - **基础信息维度**：`DimensionName（Value: 具体值）`
+     示例：`Name（Value: 张三）`、`Occupation（Value: 软件工程师）`
+   - **其他维度**：`DimensionName（Level: High/Medium/Low）`
+     示例：`Extraversion（Level: High）`、`Helpfulness（Level: Medium）`
+   - **注意事项**：
+     * 使用中文括号（）而非英文括号()
+     * 每个维度单独一行，不要合并多个维度
+     * 不要添加额外标注（如"AI期望"等）
+     * Level 值只能是：High / Medium / Low / Medium-High / Low-Medium
 5. 尽量给出简短理由（若可定位到时间、人物、场景更佳）；
 6. 在合并时保留旧画像中的有效洞见；
 7. 若无法从旧画像或新对话推断某维度，请不要包含该维度。
@@ -205,12 +221,31 @@ EXTRACT_THEME_USER_PROMPT = "请从以下文本中提取主要主题：\n{answer
 
 
 # Prompt for conversation continuity check (from dynamic_update.py, _is_conversation_continuing)
-CONTINUITY_CHECK_SYSTEM_PROMPT = "你是对话连续性判定器。仅返回 'true' 或 'false'。"
-CONTINUITY_CHECK_USER_PROMPT = ("判断以下两页对话是否为同一话题的连续（无话题转移）。\n"
-                                "仅返回 \"true\" 或 \"false\"。\n\n"
-                                "上一页：\nUser: {prev_user}\nAssistant: {prev_agent}\n\n"
-                                "当前页：\nUser: {curr_user}\nAssistant: {curr_agent}\n\n"
-                                "是否连续？")
+CONTINUITY_CHECK_SYSTEM_PROMPT = """你是对话连续性判定器。你的任务是严格判断两段对话的讨论主体是否一致。
+仅返回 'true' 或 'false'。"""
+
+CONTINUITY_CHECK_USER_PROMPT = """判断以下两页对话是否围绕同一核心主体进行讨论（无主体转移）。
+
+**判断标准（严格模式）**：
+1. 讨论的核心主体（技术、概念、工具、框架等）必须一致
+2. 即使话题相关，但如果核心主体发生切换，也应判断为不连续
+3. 示例：
+   - 从"RAG检索增强"切换到"MOE混合专家" → 不连续 (false)
+   - 从"Transformer架构"切换到"BERT模型" → 不连续 (false)
+   - 继续深入讨论同一技术的不同方面 → 连续 (true)
+   - 在同一主体下扩展子话题 → 连续 (true)
+
+**请严格判断核心讨论主体是否发生变化**，仅返回 "true" 或 "false"。
+
+上一页：
+User: {prev_user}
+Assistant: {prev_agent}
+
+当前页：
+User: {curr_user}
+Assistant: {curr_agent}
+
+是否为同一主体的连续对话？"""
 
 # Prompt for generating meta info (from dynamic_update.py, _generate_meta_info)
 META_INFO_SYSTEM_PROMPT = ("""你是对话元摘要的更新器。你的任务：
