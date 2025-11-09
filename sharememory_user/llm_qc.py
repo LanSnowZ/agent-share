@@ -10,7 +10,7 @@ except ImportError:
     import json  # type: ignore
 
 from .config import Config
-from .models import QCResult, KGEdge
+from .models import KGEdge, QCResult
 
 # 直接定义 prompts，避免模块导入冲突
 QC_SYSTEM_PROMPT = """你是一名严谨的助手，需要评估一段对话是否包含可复用、足够深入且聚焦的经验。
@@ -123,18 +123,23 @@ QUERY_MERGING_SYSTEM_PROMPT = """你是查询合并专家。
 `{"merged_query": "<string: 合并后的查询>"}`
 """
 
+
 def get_user_prompt(text: str) -> str:
     return f"**待评估文本：**\n{text}"
 
+
 def get_query_matching_prompt(base_query: str, candidate_queries: List[str]) -> str:
-    candidates = "\n".join([f"{i+1}. {q}" for i, q in enumerate(candidate_queries)])
+    candidates = "\n".join([f"{i + 1}. {q}" for i, q in enumerate(candidate_queries)])
     return f"**基准查询：**\n{base_query}\n\n**候选查询：**\n{candidates}\n\n哪些候选与基准查询匹配？"
+
 
 def get_cot_merging_prompt(cot1: str, cot2: str) -> str:
     return f"**COT 1：**\n{cot1}\n\n**COT 2：**\n{cot2}\n\n请合并以上两份总结："
 
+
 def get_kg_merging_prompt(kg1: List[Dict], kg2: List[Dict]) -> str:
     return f"**KG 1：**\n{json.dumps(kg1)}\n\n**KG 2：**\n{json.dumps(kg2)}\n\n请合并上述知识图谱："
+
 
 def get_query_merging_prompt(query1: str, query2: str) -> str:
     return f"**Query 1：**\n{query1}\n\n**Query 2：**\n{query2}\n\n请合并以上两个查询："
@@ -147,18 +152,29 @@ class LLMQC:
         self.cfg = cfg
         self._provider = cfg.llm_provider
         self._client = None
-        if self._provider == "openai" and cfg.openai_api_key and "YOUR_API_KEY" not in cfg.openai_api_key:
+        if (
+            self._provider == "openai"
+            and cfg.openai_api_key
+            and "YOUR_API_KEY" not in cfg.openai_api_key
+        ):
             try:
                 from openai import OpenAI
 
                 api_key = cfg.openai_api_key
-                base_url = cfg.openai_api_base if cfg.openai_api_base and "YOUR_BASE_URL" not in cfg.openai_api_base else None
+                base_url = (
+                    cfg.openai_api_base
+                    if cfg.openai_api_base
+                    and "YOUR_BASE_URL" not in cfg.openai_api_base
+                    else None
+                )
                 self._client = OpenAI(api_key=api_key, base_url=base_url)
             except ImportError:
-                warnings.warn("OpenAI provider configured but 'openai' package not found. Falling back to heuristic.")
+                warnings.warn(
+                    "OpenAI provider configured but 'openai' package not found. Falling back to heuristic."
+                )
                 self._provider = "none"
         else:
-            self._provider = "none" # Fallback if key is placeholder
+            self._provider = "none"  # Fallback if key is placeholder
 
     def _call_llm(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         if not self._client:
@@ -180,17 +196,19 @@ class LLMQC:
         if self._provider == "openai":
             try:
                 user_prompt = get_user_prompt(text)
-                
+
                 # Step 1: Quality Check
                 qc_data = self._call_llm(QC_SYSTEM_PROMPT, user_prompt)
-                
+
                 include = qc_data.get("include", False)
                 scores = qc_data.get("scores", {})
-                if "reusability" in scores: # Normalize key
+                if "reusability" in scores:  # Normalize key
                     scores["reuse"] = scores.pop("reusability")
 
                 if not include:
-                    return QCResult(include=False, scores=scores, cot="", kg=[], query="")
+                    return QCResult(
+                        include=False, scores=scores, cot="", kg=[], query=""
+                    )
 
                 # Steps 2, 3, 4: Extract COT, KG, and Query
                 cot_data = self._call_llm(COT_EXTRACTION_SYSTEM_PROMPT, user_prompt)
@@ -205,7 +223,9 @@ class LLMQC:
                     query=query_data.get("query", ""),
                 )
             except Exception as e:
-                warnings.warn(f"OpenAI call sequence failed: {e}. Falling back to heuristic.")
+                warnings.warn(
+                    f"OpenAI call sequence failed: {e}. Falling back to heuristic."
+                )
 
         # Fallback to heuristic for any failure or if provider is "none"
         return self._run_heuristic(text, source_user_id)
@@ -240,7 +260,9 @@ class LLMQC:
         lines = [l for l in text.splitlines()]
         kept: List[str] = []
         # Updated regex to handle formats like "User (timestamp):" or "User:"
-        role_prefix_re = re.compile(r"^(user|用户|question|问|提问|q)\s*(?:\([^)]*\))?\s*[:：]\s*", flags=re.I)
+        role_prefix_re = re.compile(
+            r"^(user|用户|question|问|提问|q)\s*(?:\([^)]*\))?\s*[:：]\s*", flags=re.I
+        )
         for line in lines:
             s = line.strip()
             if not s:
@@ -261,7 +283,9 @@ class LLMQC:
             return text
         return "\n".join(kept)
 
-    def match_queries(self, base_query: str, candidate_queries: List[str]) -> List[bool]:
+    def match_queries(
+        self, base_query: str, candidate_queries: List[str]
+    ) -> List[bool]:
         """Uses LLM to find which candidate queries match the base query."""
         if self._provider != "openai" or not self._client:
             return [False] * len(candidate_queries)
@@ -273,34 +297,46 @@ class LLMQC:
                 return matches
             return [False] * len(candidate_queries)
         except Exception as e:
-            warnings.warn(f"OpenAI call for query matching failed: {e}. Defaulting to no matches.")
+            warnings.warn(
+                f"OpenAI call for query matching failed: {e}. Defaulting to no matches."
+            )
             return [False] * len(candidate_queries)
 
-    def are_focus_queries_useful(self, user_query: str, focus_queries: List[str]) -> List[bool]:
+    def are_focus_queries_useful(
+        self, user_query: str, focus_queries: List[str]
+    ) -> List[bool]:
         """Decides via LLM (in batch) whether each memory's focus_query is useful for answering user_query.
 
         Fallback heuristic if LLM unavailable: keyword overlap check for each focus_query.
         """
         if not focus_queries:
             return []
-        
+
         # Heuristic fallback
         if self._provider != "openai" or not self._client:
             uq = (user_query or "").lower()
-            uq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", uq) if len(t) >= 3)
+            uq_terms = set(
+                t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", uq) if len(t) >= 3
+            )
             results = []
             for fq in focus_queries:
                 fq_lower = (fq or "").lower()
                 if not fq_lower.strip():
                     results.append(False)
                     continue
-                fq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", fq_lower) if len(t) >= 3)
+                fq_terms = set(
+                    t
+                    for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", fq_lower)
+                    if len(t) >= 3
+                )
                 results.append(len(uq_terms & fq_terms) > 0)
             return results
 
         # LLM batch path
         try:
-            focus_list_str = "\n".join([f"{i+1}. {fq}" for i, fq in enumerate(focus_queries)])
+            focus_list_str = "\n".join(
+                [f"{i + 1}. {fq}" for i, fq in enumerate(focus_queries)]
+            )
             user_prompt = (
                 f"User Query:\n---\n{user_query}\n---\n\n"
                 f"Focus Queries (numbered):\n---\n{focus_list_str}\n---\n"
@@ -311,20 +347,30 @@ class LLMQC:
             if isinstance(useful_list, list) and len(useful_list) == len(focus_queries):
                 return [bool(u) for u in useful_list]
             # Fallback if response malformed
-            warnings.warn(f"LLM returned malformed useful list (expected {len(focus_queries)}, got {len(useful_list)}). Using heuristic.")
+            warnings.warn(
+                f"LLM returned malformed useful list (expected {len(focus_queries)}, got {len(useful_list)}). Using heuristic."
+            )
         except Exception as e:
-            warnings.warn(f"OpenAI call for focus usefulness failed: {e}. Falling back to heuristic.")
-        
+            warnings.warn(
+                f"OpenAI call for focus usefulness failed: {e}. Falling back to heuristic."
+            )
+
         # Fallback heuristic on error
         uq = (user_query or "").lower()
-        uq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", uq) if len(t) >= 3)
+        uq_terms = set(
+            t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", uq) if len(t) >= 3
+        )
         results = []
         for fq in focus_queries:
             fq_lower = (fq or "").lower()
             if not fq_lower.strip():
                 results.append(False)
                 continue
-            fq_terms = set(t for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", fq_lower) if len(t) >= 3)
+            fq_terms = set(
+                t
+                for t in re.split(r"[^a-z0-9_\-\u4e00-\u9fff]+", fq_lower)
+                if len(t) >= 3
+            )
             results.append(len(uq_terms & fq_terms) > 0)
         return results
 
@@ -337,10 +383,14 @@ class LLMQC:
             response = self._call_llm(COT_MERGING_SYSTEM_PROMPT, user_prompt)
             return response.get("merged_cot", "")
         except Exception as e:
-            warnings.warn(f"OpenAI call for CoT merging failed: {e}. Defaulting to concatenation.")
+            warnings.warn(
+                f"OpenAI call for CoT merging failed: {e}. Defaulting to concatenation."
+            )
             return cot1 + "\n\n" + cot2
 
-    def merge_kg(self, kg1: List[Dict[str, Any]], kg2: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def merge_kg(
+        self, kg1: List[Dict[str, Any]], kg2: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Merges two KGs using an LLM."""
         if self._provider != "openai" or not self._client:
             return kg1 + kg2  # Fallback
@@ -350,26 +400,36 @@ class LLMQC:
             response = self._call_llm(KG_MERGING_SYSTEM_PROMPT, user_prompt)
             return response.get("merged_kg", [])
         except Exception as e:
-            warnings.warn(f"OpenAI call for KG merging failed: {e}. Defaulting to concatenation.")
+            warnings.warn(
+                f"OpenAI call for KG merging failed: {e}. Defaulting to concatenation."
+            )
             return kg1 + kg2
 
     def merge_query(self, query1: str, query2: str) -> str:
         """Merges two focus_query strings using an LLM."""
         if self._provider != "openai" or not self._client:
-            return f"{query1}；{query2}"  # Fallback: simple concatenation with semicolon
+            return (
+                f"{query1}；{query2}"  # Fallback: simple concatenation with semicolon
+            )
         try:
             user_prompt = get_query_merging_prompt(query1, query2)
             response = self._call_llm(QUERY_MERGING_SYSTEM_PROMPT, user_prompt)
             return response.get("merged_query", "")
         except Exception as e:
-            warnings.warn(f"OpenAI call for query merging failed: {e}. Defaulting to concatenation.")
+            warnings.warn(
+                f"OpenAI call for query merging failed: {e}. Defaulting to concatenation."
+            )
             return f"{query1}；{query2}"
 
     def _run_heuristic(self, text: str, source_user_id: str) -> QCResult:
         reuse, depth, focus = self._heuristic_scores(text)
         include = (reuse >= 2.0) and (depth >= 2.0) and (focus >= 1.5)
         cot = self._build_cot(text) if include else ""
-        kg = [e.to_dict() for e in self._extract_kg(text, source_user_id)] if include else []
+        kg = (
+            [e.to_dict() for e in self._extract_kg(text, source_user_id)]
+            if include
+            else []
+        )
         query = self._build_query(text) if include else ""
         return QCResult(
             include=include,
@@ -382,11 +442,21 @@ class LLMQC:
     def _heuristic_scores(self, text: str) -> Tuple[float, float, float]:
         # reuse: presence of steps, bullets, patterns
         bullets = len(re.findall(r"^(?:\s*[-*]|\s*\d+\.)", text, flags=re.M))
-        templates = len(re.findall(r"\b(步骤|template|pattern|checklist|清单|模板)\b", text, flags=re.I))
+        templates = len(
+            re.findall(
+                r"\b(步骤|template|pattern|checklist|清单|模板)\b", text, flags=re.I
+            )
+        )
         reuse = min(3.0, 1.0 + 0.5 * bullets + 0.7 * templates)
 
         # depth: technical terms, tradeoffs, constraints
-        keywords = len(re.findall(r"\b(latency|throughput|复杂度|边界|约束|trade[- ]?off|限制|反例)\b", text, flags=re.I))
+        keywords = len(
+            re.findall(
+                r"\b(latency|throughput|复杂度|边界|约束|trade[- ]?off|限制|反例)\b",
+                text,
+                flags=re.I,
+            )
+        )
         if len(text) > 800:
             keywords += 2
         depth = min(3.0, 0.5 + 0.6 * keywords)
@@ -407,15 +477,33 @@ class LLMQC:
         if not steps:
             # fallback: sentence-based outline
             sentences = re.split(r"[。.!?]\s+", text)
-            steps = [f"- {s.strip()}" for s in sentences if 10 <= len(s.strip()) <= 180][:8]
-        cot = "\n".join(["- 前提/环境: 明确依赖、版本、限制", *steps[:10], "- 结论: 给出预期结果与验证方法"])
+            steps = [
+                f"- {s.strip()}" for s in sentences if 10 <= len(s.strip()) <= 180
+            ][:8]
+        cot = "\n".join(
+            [
+                "- 前提/环境: 明确依赖、版本、限制",
+                *steps[:10],
+                "- 结论: 给出预期结果与验证方法",
+            ]
+        )
         return cot
 
     def _extract_kg(self, text: str, source_user_id: str) -> List[KGEdge]:
         edges: List[KGEdge] = []
         # naive extraction of "X -> Y", "X uses Y"
-        for m in re.finditer(r"([\w\-/]+)\s*(?:->|→|使用|uses)\s*([\w\-/]+)", text, flags=re.I):
-            edges.append(KGEdge(head=m.group(1), relation="relates_to", tail=m.group(2), evidence=m.group(0), source_user_id=source_user_id))
+        for m in re.finditer(
+            r"([\w\-/]+)\s*(?:->|→|使用|uses)\s*([\w\-/]+)", text, flags=re.I
+        ):
+            edges.append(
+                KGEdge(
+                    head=m.group(1),
+                    relation="relates_to",
+                    tail=m.group(2),
+                    evidence=m.group(0),
+                    source_user_id=source_user_id,
+                )
+            )
         return edges[:20]
 
     def _build_query(self, text: str) -> str:

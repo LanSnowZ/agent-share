@@ -55,6 +55,7 @@ def get_user_prompt(text: str) -> str:
 ---
 """
 
+
 # 5. 查询语义匹配提示
 QUERY_MATCHING_SYSTEM_PROMPT = """你是一名语义查询匹配助手。
 需要判断一组候选查询是否与基准查询在语义上完全一致（核心意图与主题一致，措辞可不同）。

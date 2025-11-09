@@ -5,9 +5,8 @@ import json
 from typing import List
 
 from .config import Config, ensure_dirs
-from .models import UserProfile
 from .pipeline_ingest import IngestPipeline
-from .pipeline_retrieve import RetrievePipeline, Peer
+from .pipeline_retrieve import Peer, RetrievePipeline
 from .storage import JsonStore
 
 
@@ -37,9 +36,19 @@ def cmd_ingest(args: argparse.Namespace) -> None:
         raw_text = args.dialog
     item = pipe.ingest_dialog(args.user_id, raw_text)
     if item is None:
-        print(json.dumps({"include": False, "reason": "QC rejected"}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"include": False, "reason": "QC rejected"},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return
-    print(json.dumps({"include": True, "item": item.to_dict()}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"include": True, "item": item.to_dict()}, ensure_ascii=False, indent=2
+        )
+    )
 
 
 def _load_peers(path: str) -> List[Peer]:
@@ -57,7 +66,9 @@ def cmd_retrieve(args: argparse.Namespace) -> None:
     store = JsonStore(cfg)
     user = store.get_user(args.user_id)
     if user is None:
-        print(json.dumps({"error": f"user {args.user_id} not found"}, ensure_ascii=False))
+        print(
+            json.dumps({"error": f"user {args.user_id} not found"}, ensure_ascii=False)
+        )
         return
     peers = _load_peers(args.peers) if args.peers else []
     res = ret.retrieve(user, args.task or "", peers, top_k=args.top_k)
@@ -87,14 +98,20 @@ def main() -> None:
 
     p_ing = sub.add_parser("ingest")
     p_ing.add_argument("--user_id", required=True)
-    p_ing.add_argument("--profile", required=True, help="path to user profile json or raw text")
-    p_ing.add_argument("--dialog", required=True, help="path to dialog .txt or raw text")
+    p_ing.add_argument(
+        "--profile", required=True, help="path to user profile json or raw text"
+    )
+    p_ing.add_argument(
+        "--dialog", required=True, help="path to dialog .txt or raw text"
+    )
     p_ing.set_defaults(func=cmd_ingest)
 
     p_ret = sub.add_parser("retrieve")
     p_ret.add_argument("--user_id", required=True)
     p_ret.add_argument("--task", required=False, default="")
-    p_ret.add_argument("--peers", required=False, default="", help="path to peers json array")
+    p_ret.add_argument(
+        "--peers", required=False, default="", help="path to peers json array"
+    )
     p_ret.add_argument("--top_k", type=int, default=5)
     p_ret.set_defaults(func=cmd_retrieve)
 

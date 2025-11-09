@@ -8,10 +8,10 @@ from tqdm import tqdm
 
 from .config import Config
 from .embedding import Embedder
+from .llm_qc import LLMQC
 from .models import MemoryItem, UserProfile
 from .storage import JsonStore
-from .utils import l2_normalize, softmax, entropy, js_divergence
-from .llm_qc import LLMQC
+from .utils import entropy, js_divergence, l2_normalize, softmax
 
 
 @dataclass
@@ -53,19 +53,21 @@ class RetrievePipeline:
             text = profile_text or ""
             vec = np.array(self.embed.embed_text(text), dtype=np.float64)
             return l2_normalize(vec)
-        
+
         # Separately encode profile and task
-        profile_vec = np.array(self.embed.embed_text(profile_text or ""), dtype=np.float64)
+        profile_vec = np.array(
+            self.embed.embed_text(profile_text or ""), dtype=np.float64
+        )
         task_vec = np.array(self.embed.embed_text(task), dtype=np.float64)
-        
+
         # Normalize both vectors
         profile_vec = l2_normalize(profile_vec)
         task_vec = l2_normalize(task_vec)
-        
+
         # Weighted fusion: use configurable weights
         task_weight = self.cfg.task_weight
         profile_weight = self.cfg.profile_weight
-        
+
         # Ensure weights sum to 1.0 for proper normalization
         total_weight = task_weight + profile_weight
         if total_weight > 0:
@@ -73,7 +75,7 @@ class RetrievePipeline:
             profile_weight = profile_weight / total_weight
         else:
             task_weight, profile_weight = 0.7, 0.3  # fallback
-        
+
         fused_vec = task_weight * task_vec + profile_weight * profile_vec
         return l2_normalize(fused_vec)
 
@@ -128,7 +130,9 @@ class RetrievePipeline:
         p_peer = (beta[:, None] * alphas_mat).sum(axis=0)
         return p_peer
 
-    def step_c(self, alpha_i: np.ndarray, p_peer: np.ndarray) -> Tuple[np.ndarray, float]:
+    def step_c(
+        self, alpha_i: np.ndarray, p_peer: np.ndarray
+    ) -> Tuple[np.ndarray, float]:
         M = alpha_i.shape[0]
         H_self = entropy(alpha_i)
         H_peer = entropy(p_peer)
@@ -142,7 +146,9 @@ class RetrievePipeline:
         tilde_alpha = lambda_i * alpha_i + (1.0 - lambda_i) * p_peer
         return tilde_alpha, float(lambda_i)
 
-    def _pre_filter_memories_by_focus(self, memories: List[MemoryItem], query_vec: np.ndarray, top_k: int) -> List[MemoryItem]:
+    def _pre_filter_memories_by_focus(
+        self, memories: List[MemoryItem], query_vec: np.ndarray, top_k: int
+    ) -> List[MemoryItem]:
         """Pre-filters memories based on cosine similarity between query and memory's focus_query."""
         if not memories or top_k <= 0:
             return []
@@ -152,24 +158,28 @@ class RetrievePipeline:
         focus_vectors = l2_normalize(focus_vectors)
 
         similarities = focus_vectors @ query_vec
-        
+
         # Get top_k indices, ensuring we don't go out of bounds
         num_memories = len(memories)
         k = min(top_k, num_memories)
-        
+
         # Get the indices of the top k similarities
         top_k_indices = np.argsort(-similarities)[:k]
-        
+
         return [memories[i] for i in top_k_indices]
 
-    def retrieve(self, user: UserProfile, task: str, peers: List[Peer], top_k: int = 3) -> Dict[str, any]:
+    def retrieve(
+        self, user: UserProfile, task: str, peers: List[Peer], top_k: int = 3
+    ) -> Dict[str, any]:
         memories = self.store.list_memories()
         Q_i = self._encode_query(user.profile_text, task)
 
         # Step 1: Pre-filter to get top 10 candidates based on focus_query
         pre_filter_k = 10
-        candidate_memories = self._pre_filter_memories_by_focus(memories, Q_i, pre_filter_k)
-        
+        candidate_memories = self._pre_filter_memories_by_focus(
+            memories, Q_i, pre_filter_k
+        )
+
         # If no candidates, return empty
         if not candidate_memories:
             return {"items": [], "lambda": 0.0, "alpha": [], "peer": []}
@@ -178,25 +188,25 @@ class RetrievePipeline:
         E = self._stack_memory_matrix(candidate_memories)
         if E.shape[0] == 0:
             return {"items": [], "lambda": 0.0, "alpha": [], "peer": []}
-        
+
         alpha_i, _ = self.step_a(Q_i, E)
         p_peer = self.step_b(Q_i, peers, E)
         tilde_alpha, lambda_i = self.step_c(alpha_i, p_peer)
-        
+
         order = np.argsort(-tilde_alpha)
-        
+
         # Final top_k selection from the candidates
         indices = order[:top_k]
 
         # LLM-based usefulness filtering (batch): collect all focus_queries, call LLM once, filter indices
         topk_focus_queries = [candidate_memories[idx].focus_query for idx in indices]
         useful_flags = self.llm.are_focus_queries_useful(task, topk_focus_queries)
-        
+
         filtered_indices: List[int] = []
         for i, idx in enumerate(indices):
             if i < len(useful_flags) and useful_flags[i]:
                 filtered_indices.append(idx)
-        
+
         results = [
             {
                 "rank": int(r + 1),
@@ -212,7 +222,12 @@ class RetrievePipeline:
             "peer": p_peer.tolist(),
         }
 
-    def build_prompt_blocks(self, items: List[Dict[str, any]], conversation_id: str = None, username: str = None) -> str:
+    def build_prompt_blocks(
+        self,
+        items: List[Dict[str, any]],
+        conversation_id: str = None,
+        username: str = None,
+    ) -> str:
         parts: List[str] = []
         selected_ids: List[str] = []
         for i, it in enumerate(items, start=1):
@@ -230,7 +245,7 @@ class RetrievePipeline:
             print(f"  - Keys in mem: {list(mem.keys())}")
             print("##############################################")
             # Record selected memory id for final summary print
-            memory_id = mem.get('id', 'NO_ID_FOUND')
+            memory_id = mem.get("id", "NO_ID_FOUND")
             selected_ids.append(memory_id)
             print(f"  - 添加记忆ID到selected_ids: {memory_id}")
             # Get the static profile of the memory creator
@@ -239,7 +254,7 @@ class RetrievePipeline:
                 creator_user = self.store.get_user(source_user_id)
                 if creator_user:
                     creator_profile = creator_user.profile_text
-            
+
             # Build the memory block with focus_query and creator profile
             parts.append(f"### Memory #{i}")
             if focus_query:
@@ -254,9 +269,9 @@ class RetrievePipeline:
                 tail = e.get("tail", "?")
                 parts.append(f"- ({head}, {rel}, {tail})")
             parts.append("")  # Add empty line between memories
-            with open('cotkg.txt', 'a+') as f:
+            with open("cotkg.txt", "a+") as f:
                 f.write(cot)
-                f.write('\n\n--- Knowledge Graph ---\n')
+                f.write("\n\n--- Knowledge Graph ---\n")
                 for e in kg:
                     head = e.get("head", "?")
                     rel = e.get("relation", "rel")
@@ -269,27 +284,28 @@ class RetrievePipeline:
             except Exception:
                 # Fallback to avoid any unexpected printing errors
                 print("✅ 最终加入提示词的共享记忆ID:", selected_ids)
-        
+
         # 记忆ID的保存现在通过save_chat_conversation函数完成
-        print(f"\n🔧 [build_prompt_blocks] 记忆ID将通过save_chat_conversation函数保存:")
+        print("\n🔧 [build_prompt_blocks] 记忆ID将通过save_chat_conversation函数保存:")
         print(f"  - selected_ids: {selected_ids}")
         print(f"  - conversation_id: {conversation_id}")
         print(f"  - username: {username}")
-        
+
         return "\n".join(parts)
-    
-    def _save_used_memories_to_conversation(self, conversation_id: str, memory_ids: List[str], username: str) -> None:
+
+    def _save_used_memories_to_conversation(
+        self, conversation_id: str, memory_ids: List[str], username: str
+    ) -> None:
         """保存对话中使用的共享记忆ID和focus_query"""
         import json
         import os
-        from datetime import datetime
-        
+
         try:
-            print(f"\n🔧 [pipeline_retrieve] 开始保存使用的记忆ID:")
+            print("\n🔧 [pipeline_retrieve] 开始保存使用的记忆ID:")
             print(f"  - 对话ID: {conversation_id}")
             print(f"  - 用户名: {username}")
             print(f"  - 记忆ID列表: {memory_ids}")
-            
+
             # 构建对话文件路径
             # 从当前文件路径: /root/autodl-tmp/service/agent-share/sharememory_user/pipeline_retrieve.py
             # 需要到达: /root/autodl-tmp/service/agent-share/eval/memoryos_data
@@ -297,27 +313,33 @@ class RetrievePipeline:
             # 上一级: os.path.dirname(__file__) = /root/autodl-tmp/service/agent-share/sharememory_user
             # 上两级: os.path.dirname(os.path.dirname(__file__)) = /root/autodl-tmp/service/agent-share
             # 目标: /root/autodl-tmp/service/agent-share/eval/memoryos_data
-            MEMORYOS_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "eval", "memoryos_data")
+            MEMORYOS_DATA_DIR = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "eval", "memoryos_data"
+            )
             conversation_file = os.path.join(
-                MEMORYOS_DATA_DIR, "default_project", "users", username, f"{conversation_id}.json"
+                MEMORYOS_DATA_DIR,
+                "default_project",
+                "users",
+                username,
+                f"{conversation_id}.json",
             )
             print(f"  - 对话文件路径: {conversation_file}")
             print(f"  - 对话文件是否存在: {os.path.exists(conversation_file)}")
-            
+
             if os.path.exists(conversation_file):
                 with open(conversation_file, "r", encoding="utf-8") as f:
                     conversation_data = json.load(f)
-                
+
                 # 添加使用的记忆ID到对话数据中
                 if "used_memories" not in conversation_data:
                     conversation_data["used_memories"] = []
-                
+
                 # 获取所有记忆，用于查找focus_query
                 all_memories = self.store.list_memories()
                 memory_id_to_focus_query = {}
                 for memory in all_memories:
                     memory_id_to_focus_query[memory.id] = memory.focus_query
-                
+
                 # 将新的记忆ID和focus_query添加到列表中（避免重复）
                 existing_memory_ids = set()
                 for existing_memory in conversation_data["used_memories"]:
@@ -325,27 +347,29 @@ class RetrievePipeline:
                         existing_memory_ids.add(existing_memory.get("id"))
                     else:
                         existing_memory_ids.add(existing_memory)
-                
+
                 for memory_id in memory_ids:
                     if memory_id not in existing_memory_ids:
                         focus_query = memory_id_to_focus_query.get(memory_id, "")
-                        memory_info = {
-                            "id": memory_id,
-                            "focus_query": focus_query
-                        }
+                        memory_info = {"id": memory_id, "focus_query": focus_query}
                         conversation_data["used_memories"].append(memory_info)
-                        print(f"✅ [pipeline_retrieve] 保存记忆ID: {memory_id}, focus_query: {focus_query[:50]}...")
+                        print(
+                            f"✅ [pipeline_retrieve] 保存记忆ID: {memory_id}, focus_query: {focus_query[:50]}..."
+                        )
                     else:
                         print(f"⚠️ [pipeline_retrieve] 记忆ID已存在，跳过: {memory_id}")
-                
+
                 # 保存更新后的对话数据
                 with open(conversation_file, "w", encoding="utf-8") as f:
                     json.dump(conversation_data, f, ensure_ascii=False, indent=2)
-                    
-                print(f"✅ [pipeline_retrieve] 已保存使用的记忆ID和focus_query到对话: {conversation_id}")
+
+                print(
+                    f"✅ [pipeline_retrieve] 已保存使用的记忆ID和focus_query到对话: {conversation_id}"
+                )
             else:
                 print(f"⚠️ [pipeline_retrieve] 对话文件不存在: {conversation_file}")
         except Exception as e:
             print(f"⚠️ [pipeline_retrieve] 保存使用的记忆ID失败: {e}")
             import traceback
+
             traceback.print_exc()

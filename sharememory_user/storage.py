@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, List, Iterable
+from typing import Any, Dict, Iterable, List
 
 try:
     import orjson as json
@@ -33,6 +33,7 @@ class JsonStore:
         except Exception:
             # fallback to standard json
             import json as std_json
+
             with open(path, "r") as f:
                 return std_json.load(f)
 
@@ -103,21 +104,21 @@ class JsonStore:
         return updated
 
     def list_memories(self) -> List[MemoryItem]:
-        print(f"\n{'='*80}")
-        print(f"📂 正在读取记忆文件:")
+        print(f"\n{'=' * 80}")
+        print("📂 正在读取记忆文件:")
         print(f"   文件路径: {self.cfg.memory_path}")
         print(f"   文件名: {os.path.basename(self.cfg.memory_path)}")
-        print(f"{'='*80}")
-        
+        print(f"{'=' * 80}")
+
         data = self._read_json(self.cfg.memory_path)
         memories_list = [MemoryItem(**m) for m in data.get("memories", [])]
-        
+
         print(f"✅ 成功读取 {len(memories_list)} 条记忆")
         if memories_list:
             print(f"   - 第一条记忆 ID: {memories_list[0].id}")
             print(f"   - 最后一条记忆 ID: {memories_list[-1].id}")
-        print(f"{'='*80}\n")
-        
+        print(f"{'=' * 80}\n")
+
         return memories_list
 
     def clear_all(self) -> None:

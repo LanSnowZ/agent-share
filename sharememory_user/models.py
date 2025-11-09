@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional
 import time
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -44,7 +44,7 @@ class MemoryItem:
 
     @staticmethod
     def build_id(prefix: str = "mem") -> str:
-        return f"{prefix}_{int(time.time()*1000)}"
+        return f"{prefix}_{int(time.time() * 1000)}"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
