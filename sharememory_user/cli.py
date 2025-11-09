@@ -4,11 +4,11 @@ import argparse
 import json
 from typing import List
 
-from config import Config, ensure_dirs
-from models import UserProfile
-from pipeline_ingest import IngestPipeline
-from pipeline_retrieve import RetrievePipeline, Peer
-from storage import JsonStore
+from .config import Config, ensure_dirs
+from .models import UserProfile
+from .pipeline_ingest import IngestPipeline
+from .pipeline_retrieve import RetrievePipeline, Peer
+from .storage import JsonStore
 
 
 def cmd_init(args: argparse.Namespace) -> None:

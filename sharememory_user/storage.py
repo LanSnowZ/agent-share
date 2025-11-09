@@ -9,8 +9,8 @@ try:
 except Exception:  # pragma: no cover
     import json  # type: ignore
 
-from config import Config, ensure_dirs
-from models import MemoryItem, UserProfile
+from .config import Config, ensure_dirs
+from .models import MemoryItem, UserProfile
 
 
 class JsonStore:

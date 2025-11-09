@@ -6,11 +6,11 @@ from typing import List, Optional
 
 import numpy as np
 
-from config import Config
-from embedding import Embedder
-from llm_qc import LLMQC
-from models import MemoryItem, UserProfile
-from storage import JsonStore
+from .config import Config
+from .embedding import Embedder
+from .llm_qc import LLMQC
+from .models import MemoryItem, UserProfile
+from .storage import JsonStore
 
 
 class IngestPipeline:

@@ -6,12 +6,12 @@ from typing import Dict, List, Tuple
 import numpy as np
 from tqdm import tqdm
 
-from sharememory_user.config import Config
-from sharememory_user.embedding import Embedder
-from sharememory_user.models import MemoryItem, UserProfile
-from sharememory_user.storage import JsonStore
-from sharememory_user.utils import l2_normalize, softmax, entropy, js_divergence
-from sharememory_user.llm_qc import LLMQC
+from .config import Config
+from .embedding import Embedder
+from .models import MemoryItem, UserProfile
+from .storage import JsonStore
+from .utils import l2_normalize, softmax, entropy, js_divergence
+from .llm_qc import LLMQC
 
 
 @dataclass

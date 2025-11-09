@@ -1,26 +1,24 @@
 # -*- coding: utf-8 -*-
+import base64
+import hashlib
+import hmac
 import json
 import os
 import random
+import re
+import secrets
 import string
 import sys
 import time
 from datetime import datetime, timedelta
+from functools import wraps
 from typing import Any, Dict, List, Optional
 
 import dotenv
-
-dotenv.load_dotenv()
-
-# 设置 Hugging Face 镜像源（解决连接超时问题）
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-
-import base64
-import hashlib
-import hmac
-import secrets
-from functools import wraps
-
+from alibabacloud_dm20151123 import models as dm_20151123_models
+from alibabacloud_dm20151123.client import Client as Dm20151123Client
+from alibabacloud_tea_openapi import models as open_api_models
+from alibabacloud_tea_util import models as util_models
 from flask import (
     Flask,
     Response,
@@ -32,31 +30,45 @@ from flask import (
     send_from_directory,
 )
 from flask_cors import CORS
-
-# 添加项目根目录到路径
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
-
-# 关键：先添加 sharememory_user，再添加 memoryos-pypi
-# 这样 sharememory_user 的模块（如 prompts, config）优先级更高
-sharememory_user_path = os.path.join(project_root, "sharememory_user")
-sys.path.insert(0, sharememory_user_path)
-
-memoryos_path = os.path.join(project_root, "memoryos-pypi")
-sys.path.insert(0, memoryos_path)
-
-# 导入MemoryOS用于个人记忆
-from alibabacloud_dm20151123 import models as dm_20151123_models
-from alibabacloud_dm20151123.client import Client as Dm20151123Client
-from alibabacloud_tea_openapi import models as open_api_models
-from alibabacloud_tea_util import models as util_models
-from memoryos import Memoryos
-
-# 导入邮件发送功能
 from pydantic_settings import BaseSettings
 
+from memoryos_pypi.memoryos import Memoryos
+from memoryos_pypi.utils import check_conversation_continuity
+from sharememory_user.config import Config
+from sharememory_user.models import UserProfile
+from sharememory_user.pipeline_retrieve import RetrievePipeline
+from sharememory_user.storage import JsonStore
 
-# ===================== 配置类 =====================
+dotenv.load_dotenv()
+
+# 设置 Hugging Face 镜像源（解决连接超时问题）
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
+# # 添加项目根目录到路径
+# project_root = os.path.dirname(os.path.abspath(__file__))
+# sys.path.insert(0, project_root)
+
+# # 关键：先添加 sharememory_user，再添加 memoryos-pypi
+# # 这样 sharememory_user 的模块（如 prompts, config）优先级更高
+# sharememory_user_path = os.path.join(project_root, "sharememory_user")
+# sys.path.insert(0, sharememory_user_path)
+
+# memoryos_path = os.path.join(project_root, "memoryos-pypi")
+# sys.path.insert(0, memoryos_path)
+
+
+class CachePathSettings(BaseSettings):
+    """缓存配置类"""
+
+    USER_FILE_PATH: str = "user.json"
+    MEMORYOS_DATA_DIR: str = "eval/memoryos_data"
+    MEMORY_FILE_PATH: str = "memory.json"
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+
 class EmailSettings(BaseSettings):
     """邮件配置类"""
 
@@ -71,8 +83,8 @@ class EmailSettings(BaseSettings):
         extra = "ignore"
 
 
+cache_path_settings = CachePathSettings()
 email_settings = EmailSettings()
-# =================================================
 
 
 def create_client() -> Optional[Dm20151123Client]:
@@ -153,17 +165,6 @@ def send_email(to_address: str, code: str) -> bool:
             pass
         return False
 
-
-# 导入评估提示词
-from eval.evaluation_prompts import (
-    get_baseline_answer_prompt,
-    get_fusion_rag_prompt,
-    get_rag_answer_prompt,
-)
-from sharememory_user.config import Config
-from sharememory_user.models import UserProfile
-from sharememory_user.pipeline_retrieve import RetrievePipeline
-from sharememory_user.storage import JsonStore
 
 app = Flask(__name__)
 # 仅允许可信前端来源并支持携带凭据（用于设置HttpOnly Cookie）
@@ -288,11 +289,6 @@ print(f"{'=' * 60}\n")
 store = JsonStore(config)
 retrieve_pipeline = RetrievePipeline(config)
 memoryos_instances = {}  # 存储每个用户的MemoryOS实例
-
-
-# =============================
-# 用户画像维度提取与同步（统一到 users.json）
-import re
 
 DIMENSION_GROUPS_CN = {
     "basic_info": "基础信息",
@@ -488,14 +484,9 @@ def get_ingest_pipeline():
     return ingest_pipeline
 
 
-# 导入 MemoryOS 的工具函数用于检测思维链断裂
-
-sys.path.insert(0, memoryos_path)
-from utils import check_conversation_continuity
-
-# 用户数据存储目录 - 使用memoryos_data结构，按照项目/用户层级组织
-MEMORYOS_DATA_DIR = os.path.join(project_root, "eval", "memoryos_data")
-os.makedirs(MEMORYOS_DATA_DIR, exist_ok=True)
+# # 用户数据存储目录 - 使用memoryos_data结构，按照项目/用户层级组织
+# cache_path_settings.MEMORYOS_DATA_DIR = os.path.join(project_root, "eval", "memoryos_data")
+# os.makedirs(cache_path_settings.MEMORYOS_DATA_DIR, exist_ok=True)
 
 
 def save_chain_to_shared_memory(user_id: str, chain_pages: List[Dict]):
@@ -714,7 +705,6 @@ def check_and_store_chain_break_from_memoryos(user_id: str, memoryos_instance) -
             print("📤 完整对话链已发送到共享记忆")
         else:
             # 计算当前完整对话链长度（包括中期）
-            first_qa = short_term_qa_list[0]
             current_chain = trace_complete_chain(memoryos_instance, short_term_qa_list)
             print(f"✅ 对话连续，完整对话链长度: {len(current_chain)}")
 
@@ -733,7 +723,9 @@ def ensure_user_memoryos(
     if user_id not in memoryos_instances:
         try:
             # 创建用户数据目录 - 按照项目/用户层级结构: eval/memoryos_data/{project}/users/{user_id}
-            project_dir = os.path.join(MEMORYOS_DATA_DIR, project_name)
+            project_dir = os.path.join(
+                cache_path_settings.cache_path_settings.MEMORYOS_DATA_DIR, project_name
+            )
             user_data_dir = project_dir
             os.makedirs(user_data_dir, exist_ok=True)
 
@@ -776,7 +768,11 @@ def get_user_config(
 ) -> Dict[str, Any]:
     """获取用户配置"""
     config_path = os.path.join(
-        MEMORYOS_DATA_DIR, project_name, "users", user_id, "config.json"
+        cache_path_settings.MEMORYOS_DATA_DIR,
+        project_name,
+        "users",
+        user_id,
+        "config.json",
     )
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -789,7 +785,9 @@ def save_user_config(
 ) -> bool:
     """保存用户配置"""
     try:
-        user_dir = os.path.join(MEMORYOS_DATA_DIR, project_name, "users", user_id)
+        user_dir = os.path.join(
+            cache_path_settings.MEMORYOS_DATA_DIR, project_name, "users", user_id
+        )
         os.makedirs(user_dir, exist_ok=True)
 
         config_path = os.path.join(user_dir, "config.json")
@@ -806,7 +804,11 @@ def get_chat_conversations(
 ) -> List[Dict[str, Any]]:
     """获取用户的聊天对话列表"""
     conversations_path = os.path.join(
-        MEMORYOS_DATA_DIR, project_name, "users", user_id, "conversations.json"
+        cache_path_settings.MEMORYOS_DATA_DIR,
+        project_name,
+        "users",
+        user_id,
+        "conversations.json",
     )
     if os.path.exists(conversations_path):
         with open(conversations_path, "r", encoding="utf-8") as f:
@@ -821,7 +823,9 @@ def save_chat_conversations(
 ) -> bool:
     """保存用户的聊天对话列表"""
     try:
-        user_dir = os.path.join(MEMORYOS_DATA_DIR, project_name, "users", user_id)
+        user_dir = os.path.join(
+            cache_path_settings.MEMORYOS_DATA_DIR, project_name, "users", user_id
+        )
         os.makedirs(user_dir, exist_ok=True)
 
         conversations_path = os.path.join(user_dir, "conversations.json")
@@ -838,7 +842,7 @@ def get_chat_messages(
 ) -> Optional[Dict[str, Any]]:
     """获取指定对话的消息"""
     conversation_path = os.path.join(
-        MEMORYOS_DATA_DIR,
+        cache_path_settings.MEMORYOS_DATA_DIR,
         project_name,
         "users",
         user_id,
@@ -863,7 +867,7 @@ def save_used_memories_to_conversation(
 
         # 构建对话文件路径
         conversation_file = os.path.join(
-            MEMORYOS_DATA_DIR,
+            cache_path_settings.MEMORYOS_DATA_DIR,
             "default_project",
             "users",
             username,
@@ -882,11 +886,12 @@ def save_used_memories_to_conversation(
 
             # 从memory.json文件获取所有记忆，用于查找focus_query
             memory_id_to_focus_query = {}
-            memory_file_path = os.path.join(project_root, "data", "memory.json")
 
-            if os.path.exists(memory_file_path):
+            if os.path.exists(cache_path_settings.MEMORY_FILE_PATH):
                 try:
-                    with open(memory_file_path, "r", encoding="utf-8") as f:
+                    with open(
+                        cache_path_settings.MEMORY_FILE_PATH, "r", encoding="utf-8"
+                    ) as f:
                         memory_data = json.load(f)
                         memories_list = memory_data.get("memories", [])
                         for mem in memories_list:
@@ -947,7 +952,7 @@ def save_chat_conversation(
 
     # 创建用户目录
     user_chat_dir = os.path.join(
-        MEMORYOS_DATA_DIR, "default_project", "users", username
+        cache_path_settings.MEMORYOS_DATA_DIR, "default_project", "users", username
     )
     os.makedirs(user_chat_dir, exist_ok=True)
 
@@ -1111,7 +1116,7 @@ def load_conversation_history(username, conversation_id):
     """加载对话历史"""
     try:
         conversation_file = os.path.join(
-            MEMORYOS_DATA_DIR,
+            cache_path_settings.MEMORYOS_DATA_DIR,
             "default_project",
             "users",
             username,
@@ -1132,48 +1137,6 @@ def load_conversation_history(username, conversation_id):
     except Exception as e:
         print(f"❌ 加载对话历史失败: {e}")
         return None
-
-
-def get_chat_conversations(username, project_name="default_project"):
-    """获取用户的对话列表"""
-    try:
-        user_dir = os.path.join(MEMORYOS_DATA_DIR, project_name, "users", username)
-        if not os.path.exists(user_dir):
-            return []
-
-        conversations = []
-        for filename in os.listdir(user_dir):
-            if not (filename.endswith(".json") and filename.startswith("chat_")):
-                # 跳过配置文件等非对话 JSON
-                continue
-
-            conversation_id = filename[:-5]  # 去掉.json后缀
-            conversation_file = os.path.join(user_dir, filename)
-
-            try:
-                with open(conversation_file, "r", encoding="utf-8") as f:
-                    conversation_data = json.load(f)
-
-                conversations.append(
-                    {
-                        "id": conversation_id,
-                        "title": conversation_data.get("title", "新对话"),
-                        "created_at": conversation_data.get("created_at", ""),
-                        "updated_at": conversation_data.get("updated_at", ""),
-                        "message_count": len(conversation_data.get("messages", [])),
-                    }
-                )
-            except Exception as e:
-                print(f"❌ 读取对话文件失败 {filename}: {e}")
-                continue
-
-        # 按更新时间排序（最新的在前）
-        conversations.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
-        return conversations
-
-    except Exception as e:
-        print(f"❌ 获取对话列表失败: {e}")
-        return []
 
 
 def format_memoryos_retrieval_result(memoryos_result):
@@ -1826,7 +1789,9 @@ def get_shared_message():
         )
 
         # 查找所有用户目录，找到包含该 chat_id 的对话
-        users_dir = os.path.join(MEMORYOS_DATA_DIR, "default_project", "users")
+        users_dir = os.path.join(
+            cache_path_settings.MEMORYOS_DATA_DIR, "default_project", "users"
+        )
         if not os.path.exists(users_dir):
             return jsonify({"success": False, "error": "分享的对话不存在"})
 
@@ -1886,9 +1851,10 @@ def get_shared_memories():
         # 检查用户是否为master
         is_master = False
         try:
-            user_file_path = os.path.join(project_root, "user.json")
-            if os.path.exists(user_file_path):
-                with open(user_file_path, "r", encoding="utf-8") as f:
+            if os.path.exists(cache_path_settings.USER_FILE_PATH):
+                with open(
+                    cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8"
+                ) as f:
                     user_data = json.load(f)
                 users = user_data.get("users", [])
                 u = next((x for x in users if x.get("username") == username), None)
@@ -2039,7 +2005,11 @@ def get_memory_file():
 
         # 构建文件路径：eval/memoryos_data/{username}/users/{username}/{file}
         file_path = os.path.join(
-            MEMORYOS_DATA_DIR, username, "users", username, file_name
+            cache_path_settings.MEMORYOS_DATA_DIR,
+            username,
+            "users",
+            username,
+            file_name,
         )
 
         print(f"尝试读取记忆文件: {file_path}")
@@ -2077,7 +2047,9 @@ def get_user_dimensions():
             grouped = user_profile.profile_dimensions
         else:
             # fallback: 从长期画像文本即时解析
-            user_dir = os.path.join(MEMORYOS_DATA_DIR, username, "users", username)
+            user_dir = os.path.join(
+                cache_path_settings.MEMORYOS_DATA_DIR, username, "users", username
+            )
             ltm_path = os.path.join(user_dir, "long_term_user.json")
             if os.path.exists(ltm_path):
                 with open(ltm_path, "r", encoding="utf-8") as f:
@@ -2109,11 +2081,10 @@ def get_quota():
         if not username:
             return jsonify({"success": False, "error": "缺少用户名"}), 400
 
-        user_file_path = os.path.join(project_root, "user.json")
-        if not os.path.exists(user_file_path):
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
             return jsonify({"success": True, "quota_total": 100000, "quota_used": 0})
 
-        with open(user_file_path, "r", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
             user_data = json.load(f)
         users = user_data.get("users", [])
         u = next((x for x in users if x.get("username") == username), None)
@@ -2170,7 +2141,10 @@ def chat_direct():
         try:
             # 直接创建对话文件，只包含分享的AI消息
             user_chat_dir = os.path.join(
-                MEMORYOS_DATA_DIR, "default_project", "users", username
+                cache_path_settings.MEMORYOS_DATA_DIR,
+                "default_project",
+                "users",
+                username,
             )
             os.makedirs(user_chat_dir, exist_ok=True)
             conversation_file = os.path.join(user_chat_dir, f"{conversation_id}.json")
@@ -2267,9 +2241,10 @@ def chat_direct():
             quota_total = 100000
             quota_used = 0
             try:
-                user_file_path = os.path.join(project_root, "user.json")
-                if os.path.exists(user_file_path):
-                    with open(user_file_path, "r", encoding="utf-8") as f:
+                if os.path.exists(cache_path_settings.USER_FILE_PATH):
+                    with open(
+                        cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8"
+                    ) as f:
                         user_data = json.load(f)
                     users = user_data.get("users", [])
                     u = next((x for x in users if x.get("username") == username), None)
@@ -2730,9 +2705,10 @@ def chat_direct():
 
             # 🎯 对话结束后，累计用户额度：每轮 +50
             try:
-                user_file_path = os.path.join(project_root, "user.json")
-                if os.path.exists(user_file_path) and username:
-                    with open(user_file_path, "r", encoding="utf-8") as f:
+                if os.path.exists(cache_path_settings.USER_FILE_PATH) and username:
+                    with open(
+                        cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8"
+                    ) as f:
                         user_data = json.load(f)
                     users = user_data.get("users", [])
                     for u in users:
@@ -2744,7 +2720,9 @@ def chat_direct():
                             u["quota_used"] = used
                             break
                     user_data["users"] = users
-                    with open(user_file_path, "w", encoding="utf-8") as f:
+                    with open(
+                        cache_path_settings.USER_FILE_PATH, "w", encoding="utf-8"
+                    ) as f:
                         json.dump(user_data, f, ensure_ascii=False, indent=2)
             except Exception as e:
                 print(f"⚠️ 累计额度失败: {e}")
@@ -2844,11 +2822,10 @@ def login():
             return jsonify({"success": False, "error": "邮箱或用户名与密码不能为空"})
 
         # 读取用户配置文件
-        user_file_path = os.path.join(project_root, "user.json")
-        if not os.path.exists(user_file_path):
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
             return jsonify({"success": False, "error": "用户配置文件不存在"})
 
-        with open(user_file_path, "r", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
             user_data = json.load(f)
 
         users = user_data.get("users", [])
@@ -2921,11 +2898,10 @@ def send_login_code():
             return jsonify({"success": False, "error": "邮箱格式不正确"})
 
         # 检查邮箱是否已注册
-        user_file_path = os.path.join(project_root, "user.json")
-        if not os.path.exists(user_file_path):
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
             return jsonify({"success": False, "error": "邮箱未注册"})
 
-        with open(user_file_path, "r", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
             user_data = json.load(f)
             users = user_data.get("users", [])
             email_exists = any(u.get("email") == email for u in users)
@@ -2979,11 +2955,10 @@ def login_with_code():
             return jsonify({"success": False, "error": "验证码错误"})
 
         # 使用邮箱查找用户
-        user_file_path = os.path.join(project_root, "user.json")
-        if not os.path.exists(user_file_path):
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
             return jsonify({"success": False, "error": "用户不存在"})
 
-        with open(user_file_path, "r", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
             user_data = json.load(f)
             users = user_data.get("users", [])
             matched_user = next((u for u in users if u.get("email") == email), None)
@@ -3022,11 +2997,10 @@ def send_reset_code():
         if "@" not in email or "." not in email.split("@")[1]:
             return jsonify({"success": False, "error": "邮箱格式不正确"})
 
-        user_file_path = os.path.join(project_root, "user.json")
-        if not os.path.exists(user_file_path):
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
             return jsonify({"success": False, "error": "邮箱未注册"})
 
-        with open(user_file_path, "r", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
             user_data = json.load(f)
             users = user_data.get("users", [])
             email_exists = any(u.get("email") == email for u in users)
@@ -3081,11 +3055,10 @@ def reset_password():
         if stored["code"] != code:
             return jsonify({"success": False, "error": "验证码错误"})
 
-        user_file_path = os.path.join(project_root, "user.json")
-        if not os.path.exists(user_file_path):
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
             return jsonify({"success": False, "error": "用户不存在"})
 
-        with open(user_file_path, "r", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
             user_data = json.load(f)
         users = user_data.get("users", [])
         updated = False
@@ -3099,7 +3072,7 @@ def reset_password():
             return jsonify({"success": False, "error": "用户不存在"})
 
         user_data["users"] = users
-        with open(user_file_path, "w", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "w", encoding="utf-8") as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2)
 
         # 一次性验证码
@@ -3133,9 +3106,8 @@ def send_verification_code():
             return jsonify({"success": False, "error": "邮箱格式不正确"})
 
         # 检查用户名是否已存在
-        user_file_path = os.path.join(project_root, "user.json")
-        if os.path.exists(user_file_path):
-            with open(user_file_path, "r", encoding="utf-8") as f:
+        if os.path.exists(cache_path_settings.USER_FILE_PATH):
+            with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
                 user_data = json.load(f)
                 users = user_data.get("users", [])
                 for user in users:
@@ -3229,11 +3201,10 @@ def register():
             return jsonify({"success": False, "error": "验证码错误"})
 
         # 验证码正确，创建用户
-        user_file_path = os.path.join(project_root, "user.json")
 
         # 读取现有用户数据
-        if os.path.exists(user_file_path):
-            with open(user_file_path, "r", encoding="utf-8") as f:
+        if os.path.exists(cache_path_settings.USER_FILE_PATH):
+            with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
                 user_data = json.load(f)
         else:
             user_data = {"users": []}
@@ -3266,7 +3237,7 @@ def register():
         user_data["users"] = users
 
         # 保存用户数据
-        with open(user_file_path, "w", encoding="utf-8") as f:
+        with open(cache_path_settings.USER_FILE_PATH, "w", encoding="utf-8") as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2)
 
         # 删除已使用的验证码
@@ -3298,7 +3269,9 @@ def serve_user_file(username, filename, project_name="default_project"):
     # 仅允许本人访问
     if g.get("current_user") != username:
         return jsonify({"error": "无权限"}), 403
-    user_dir = os.path.join(MEMORYOS_DATA_DIR, project_name, "users", username)
+    user_dir = os.path.join(
+        cache_path_settings.MEMORYOS_DATA_DIR, project_name, "users", username
+    )
     if os.path.exists(os.path.join(user_dir, filename)):
         return send_from_directory(user_dir, filename)
     else:
@@ -3338,7 +3311,7 @@ def get_used_shared_memories():
         else:
             # 从对话文件中获取使用的记忆信息
             conversation_file = os.path.join(
-                MEMORYOS_DATA_DIR,
+                cache_path_settings.MEMORYOS_DATA_DIR,
                 "default_project",
                 "users",
                 username,
@@ -3388,13 +3361,14 @@ def get_used_shared_memories():
 
         # 直接从memory.json文件读取记忆内容
         used_memories = []
-        memory_file_path = os.path.join(project_root, "data", "memory.json")
 
         # 读取memory.json文件
         all_memories_data = {}
-        if os.path.exists(memory_file_path):
+        if os.path.exists(cache_path_settings.MEMORY_FILE_PATH):
             try:
-                with open(memory_file_path, "r", encoding="utf-8") as f:
+                with open(
+                    cache_path_settings.MEMORY_FILE_PATH, "r", encoding="utf-8"
+                ) as f:
                     memory_data = json.load(f)
                     memories_list = memory_data.get("memories", [])
                     for mem in memories_list:
@@ -3472,5 +3446,5 @@ def get_used_shared_memories():
 
 if __name__ == "__main__":
     print("🚀 启动Flask应用...")
-    print(f"📁 数据目录: {MEMORYOS_DATA_DIR}")
+    print(f"📁 数据目录: {cache_path_settings.MEMORYOS_DATA_DIR}")
     app.run(host="127.0.0.1", port=5002, debug=True)

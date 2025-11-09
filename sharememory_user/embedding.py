@@ -7,7 +7,7 @@ from typing import Iterable, List
 
 import numpy as np
 
-from config import Config
+from .config import Config
 
 
 class Embedder:

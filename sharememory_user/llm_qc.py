@@ -9,8 +9,8 @@ try:
 except ImportError:
     import json  # type: ignore
 
-from config import Config
-from models import QCResult, KGEdge
+from .config import Config
+from .models import QCResult, KGEdge
 
 # 直接定义 prompts，避免模块导入冲突
 QC_SYSTEM_PROMPT = """你是一名严谨的助手，需要评估一段对话是否包含可复用、足够深入且聚焦的经验。
