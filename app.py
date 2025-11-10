@@ -10,6 +10,7 @@ import secrets
 import string
 import sys
 import time
+import traceback
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Dict, List, Optional
@@ -24,8 +25,10 @@ from flask import (
     render_template,
     request,
     send_from_directory,
+    stream_with_context,
 )
 from flask_cors import CORS
+from openai import OpenAI
 
 from memoryos_pypi.memoryos import Memoryos
 from memoryos_pypi.utils import check_conversation_continuity
@@ -165,6 +168,7 @@ print(f"{'=' * 60}\n")
 store = JsonStore(config)
 retrieve_pipeline = RetrievePipeline(config)
 memoryos_instances = {}  # 存储每个用户的MemoryOS实例
+ingest_pipeline = None  # 延迟导入 IngestPipeline
 
 DIMENSION_GROUPS_CN = {
     "basic_info": "基础信息",
@@ -334,13 +338,8 @@ def sync_user_dimensions_to_store(user_id: str, profile_text: str) -> None:
         print(f"{'=' * 60}\n")
     except Exception as e:
         print(f"⚠️ 同步用户画像维度失败: {e}")
-        import traceback
 
         traceback.print_exc()
-
-
-# 延迟导入 IngestPipeline
-ingest_pipeline = None
 
 
 def get_ingest_pipeline():
@@ -479,7 +478,6 @@ def trace_complete_chain(memoryos_instance, start_qa_list: List[Dict]) -> List[D
 
     except Exception as e:
         print(f"⚠️ 追溯完整链失败: {e}")
-        import traceback
 
         traceback.print_exc()
         # 失败时返回原始短期记忆内容
@@ -581,7 +579,6 @@ def check_and_store_chain_break_from_memoryos(user_id: str, memoryos_instance) -
 
     except Exception as e:
         print(f"⚠️ 从MemoryOS检测思维链断裂失败: {e}")
-        import traceback
 
         traceback.print_exc()
 
@@ -624,7 +621,6 @@ def ensure_user_memoryos(
             # print(f"  - 数据存储路径: {user_data_dir}")
         except Exception as e:
             print(f"创建MemoryOS实例失败: {e}")
-            import traceback
 
             traceback.print_exc()
             return None
@@ -978,7 +974,6 @@ def increment_shared_memory_contribution(memory_ids: List[str]) -> None:
 
     except Exception as e:
         print(f"⚠️ 更新共享记忆贡献值失败: {e}")
-        import traceback
 
         traceback.print_exc()
 
@@ -1226,9 +1221,6 @@ def generate_response_without_memory(
 
         # 创建无记忆提示词（不包含任何个人信息）
         prompt = get_baseline_answer_prompt_no_profile(message, conversation_context)
-
-        # 调用LLM生成回复
-        from openai import OpenAI
 
         client = OpenAI(
             api_key=user_config.get("openai_api_key", config.openai_api_key),
@@ -1502,8 +1494,6 @@ def generate_response_with_memory(
                         print("ℹ️ 共享记忆未选中任何条目（为空或被QC过滤）")
                 except Exception as log_err:
                     print(f"⚠️ 打印共享记忆ID失败: {log_err}")
-                    import traceback
-
                     traceback.print_exc()
 
                 if retrieval_result["items"]:
@@ -1566,8 +1556,6 @@ def generate_response_with_memory(
         # 对话上下文已经在相应的提示词函数中处理了，这里不需要额外添加
 
         # 调用LLM生成回复
-        from openai import OpenAI
-
         client = OpenAI(
             api_key=user_config.get("openai_api_key", config.openai_api_key),
             base_url=user_config.get("openai_base_url", config.openai_api_base),
@@ -1615,7 +1603,6 @@ def share_view(share_token):
     返回主页，通过 URL 传递分享参数，由前端 JavaScript 处理
     """
     # 验证 share_token 格式
-    import re
 
     match = re.match(r"(chat_\d+)(\d{14})", share_token)
     if not match:
@@ -1635,7 +1622,6 @@ def get_shared_message():
             return jsonify({"success": False, "error": "缺少分享令牌"})
 
         # 解析 share_token
-        import re
 
         match = re.match(r"(chat_\d+)(\d{14})", share_token)
         if not match:
@@ -1852,7 +1838,6 @@ def get_shared_memories():
 
     except Exception as e:
         print(f"❌ 获取共享记忆失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -1897,7 +1882,6 @@ def get_memory_file():
 
     except Exception as e:
         print(f"读取记忆文件失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1937,7 +1921,6 @@ def get_user_dimensions():
         )
     except Exception as e:
         print(f"获取用户画像维度失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1990,7 +1973,6 @@ def logout():
 @login_required
 def chat_direct():
     """流式聊天API - 使用Server-Sent Events"""
-    from flask import stream_with_context
 
     # 在流式上下文外读取请求数据
     data = request.get_json()
@@ -2083,7 +2065,6 @@ def chat_direct():
                     print(f"✅ 已添加分享的AI消息到对话 {conversation_id}")
         except Exception as e:
             print(f"⚠️ 保存分享消息失败: {e}")
-            import traceback
 
             traceback.print_exc()
 
@@ -2267,7 +2248,6 @@ def chat_direct():
                             )
                     except Exception as log_err:
                         print(f"⚠️ [流式聊天] 收集共享记忆ID失败: {log_err}")
-                        import traceback
 
                         traceback.print_exc()
 
@@ -2336,9 +2316,6 @@ def chat_direct():
             except Exception as e:
                 print(f"⚠️ 立即保存用户消息失败: {e}")
 
-            # 🔥 流式调用OpenAI API
-            from openai import OpenAI
-
             client = OpenAI(
                 api_key=final_api_key,
                 base_url=final_base_url,
@@ -2405,7 +2382,6 @@ def chat_direct():
                     return saved_conversation_id
                 except Exception as e:
                     print(f"❌ 保存中断消息失败: {e}")
-                    import traceback
 
                     traceback.print_exc()
                     return None
@@ -2507,7 +2483,7 @@ def chat_direct():
                 saved_conversation_id = save_interrupted_conversation()
                 try:
                     yield f"data: {json.dumps({'done': True, 'conversation_id': saved_conversation_id}, ensure_ascii=False)}\n\n"
-                except:
+                except Exception:
                     pass
                 return
 
@@ -2566,7 +2542,6 @@ def chat_direct():
                     except Exception as e:
                         print(f"❌ 保存记忆失败: {e}")
                         print(f"错误类型: {type(e).__name__}")
-                        import traceback
 
                         print(f"详细错误信息: {traceback.format_exc()}")
             elif conversation_saved_to_memory:
@@ -2600,7 +2575,6 @@ def chat_direct():
 
         except Exception as e:
             print(f"❌ 流式生成失败: {e}")
-            import traceback
 
             traceback.print_exc()
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
@@ -2639,7 +2613,6 @@ def get_chat_messages_api():
         data = request.get_json()
         username = g.get("current_user") or data.get("username")
         conversation_id = data.get("conversation_id")
-        project_name = data.get("project_name", "default_project")
 
         if not username or not conversation_id:
             return jsonify({"success": False, "error": "缺少必要参数"})
@@ -2748,7 +2721,6 @@ def login():
 
     except Exception as e:
         print(f"登录验证失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -2796,7 +2768,6 @@ def send_login_code():
         )
     except Exception as e:
         print(f"发送登录验证码失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -2849,7 +2820,6 @@ def login_with_code():
         return set_jwt_cookie(resp, token)
     except Exception as e:
         print(f"验证码登录失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -2892,7 +2862,6 @@ def send_reset_code():
         return jsonify({"success": True, "message": "验证码已发送，请在5分钟内使用"})
     except Exception as e:
         print(f"发送重置验证码失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -2952,7 +2921,6 @@ def reset_password():
         return jsonify({"success": True, "message": "密码已重置，请使用新密码登录"})
     except Exception as e:
         print(f"重置密码失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -3018,7 +2986,6 @@ def send_verification_code():
 
     except Exception as e:
         print(f"发送验证码失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -3126,7 +3093,6 @@ def register():
 
     except Exception as e:
         print(f"注册失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
@@ -3309,7 +3275,6 @@ def get_used_shared_memories():
 
     except Exception as e:
         print(f"❌ 获取使用的共享记忆失败: {e}")
-        import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
