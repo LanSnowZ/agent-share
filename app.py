@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -28,6 +29,7 @@ from flask import (
     stream_with_context,
 )
 from flask_cors import CORS
+from loguru import logger
 from openai import OpenAI
 
 from memoryos_pypi.memoryos import Memoryos
@@ -38,6 +40,7 @@ from sharememory_user.pipeline_retrieve import RetrievePipeline
 from sharememory_user.storage import JsonStore
 from src.config import cache_path_settings
 from src.email import send_email
+from src.mcp_manager import get_event_loop, get_or_create_mcp_client
 
 dotenv.load_dotenv()
 
@@ -1969,6 +1972,145 @@ def logout():
     return clear_jwt_cookie(resp)
 
 
+def generate_with_mcp_tools(
+    prompt: str,
+    username: str,
+    conversation_id: str,
+    message: str,
+    model: str,
+    shared_memory_enabled: bool,
+    personal_memory_enabled: bool,
+    used_shared_memory_ids: List[str],
+):
+    """
+    使用 MCP 工具调用的流式生成器
+
+    Args:
+        prompt: 构建好的提示词
+        username: 用户名
+        conversation_id: 对话 ID
+        message: 原始用户消息
+        model: 模型名称
+        shared_memory_enabled: 是否启用共享记忆
+        personal_memory_enabled: 是否启用个人记忆
+        used_shared_memory_ids: 使用的共享记忆 ID 列表
+
+    Yields:
+        SSE 格式的数据流
+    """
+    try:
+        # 获取或创建 MCP 客户端
+        mcp_client = get_or_create_mcp_client()
+
+        if not mcp_client:
+            logger.warning("MCP 客户端初始化失败，回退到普通模式")
+            yield f"data: {json.dumps({'error': 'MCP 客户端初始化失败'}, ensure_ascii=False)}\n\n"
+            return
+
+        # 获取事件循环
+        loop = get_event_loop()
+        if not loop:
+            logger.error("无法获取事件循环")
+            yield f"data: {json.dumps({'error': '无法获取事件循环'}, ensure_ascii=False)}\n\n"
+            return
+
+        # 创建异步生成器
+        async def async_generator():
+            async for event in mcp_client.process_query_streaming(prompt):
+                yield event
+
+        # 包装异步生成器
+        async_gen = async_generator()
+        full_response = ""
+        stream_interrupted = False
+
+        try:
+            while True:
+                try:
+                    # 在事件循环中运行异步操作
+                    event = loop.run_until_complete(async_gen.__anext__())
+
+                    if event["type"] == "content":
+                        # LLM 生成的文本内容
+                        content = event["data"]
+                        full_response += content
+                        yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+
+                    elif event["type"] == "tool_call_start":
+                        # 工具调用开始
+                        yield f"data: {json.dumps({'tool_status': 'start', 'tool_name': event['tool_name'], 'arguments': event.get('arguments', {})}, ensure_ascii=False)}\n\n"
+
+                    elif event["type"] == "tool_call_end":
+                        # 工具调用完成
+                        yield f"data: {json.dumps({'tool_status': 'end', 'tool_name': event['tool_name'], 'elapsed_time': event.get('elapsed_time', 0)}, ensure_ascii=False)}\n\n"
+
+                    elif event["type"] == "thinking":
+                        # AI 思考状态
+                        yield f"data: {json.dumps({'thinking': event.get('status', 'Thinking...')}, ensure_ascii=False)}\n\n"
+
+                    elif event["type"] == "error":
+                        # 错误信息
+                        logger.error(f"MCP 错误: {event.get('error')}")
+                        yield f"data: {json.dumps({'error': event.get('error')}, ensure_ascii=False)}\n\n"
+
+                    elif event["type"] == "done":
+                        # 处理完成
+                        break
+
+                except StopAsyncIteration:
+                    # 异步生成器结束
+                    break
+
+                except GeneratorExit:
+                    # 客户端断开连接
+                    logger.warning("客户端断开连接 (MCP 模式)")
+                    stream_interrupted = True
+                    break
+
+        except GeneratorExit:
+            logger.warning("流式输出被中断 (MCP 模式)")
+            stream_interrupted = True
+
+        except Exception as e:
+            logger.exception(f"MCP 流式处理异常: {e}")
+            yield f"data: {json.dumps({'error': f'处理异常: {str(e)}'}, ensure_ascii=False)}\n\n"
+            return
+
+        # 保存对话
+        if full_response.strip():
+            try:
+                saved_conversation_id = save_chat_conversation(
+                    username,
+                    conversation_id,
+                    message,
+                    full_response,
+                    model,
+                    shared_memory_enabled,
+                    personal_memory_enabled,
+                    used_shared_memory_ids=used_shared_memory_ids,
+                    update_last_ai_message=True,
+                )
+
+                # 发送完成信号
+                if not stream_interrupted:
+                    yield f"data: {json.dumps({'done': True, 'conversation_id': saved_conversation_id or conversation_id}, ensure_ascii=False)}\n\n"
+
+                # 更新共享记忆贡献值
+                if used_shared_memory_ids:
+                    try:
+                        increment_shared_memory_contribution(used_shared_memory_ids)
+                    except Exception as e:
+                        logger.warning(f"累计共享记忆贡献值失败: {e}")
+
+            except Exception as e:
+                logger.error(f"保存对话失败: {e}")
+                yield f"data: {json.dumps({'error': f'保存对话失败: {str(e)}'}, ensure_ascii=False)}\n\n"
+
+    except Exception as e:
+        logger.exception(f"generate_with_mcp_tools 异常: {e}")
+        yield f"data: {json.dumps({'error': f'严重错误: {str(e)}'}, ensure_ascii=False)}\n\n"
+
+
 @app.route("/chat_direct", methods=["POST"])
 @login_required
 def chat_direct():
@@ -1983,6 +2125,7 @@ def chat_direct():
     shared_memory_enabled = data.get("shared_memory_enabled", False)
     personal_memory_enabled = data.get("personal_memory_enabled", True)
     project_name = data.get("project_name", "default_project")
+    mcp_enabled = data.get("mcp_enabled", False)  # MCP 工具调用开关
 
     # 处理分享消息（如果是从分享链接访问）
     shared_message_content = data.get("shared_message_content")
@@ -2316,6 +2459,25 @@ def chat_direct():
             except Exception as e:
                 print(f"⚠️ 立即保存用户消息失败: {e}")
 
+            # 🔧 检查是否启用 MCP 工具调用
+            if mcp_enabled:
+                print("🛠️ MCP 模式已启用，使用工具调用")
+                # 使用 MCP 工具调用的流式生成器
+                yield from generate_with_mcp_tools(
+                    prompt=prompt,
+                    username=username,
+                    conversation_id=current_conversation_id,
+                    message=message,
+                    model=model,
+                    shared_memory_enabled=shared_memory_enabled,
+                    personal_memory_enabled=personal_memory_enabled,
+                    used_shared_memory_ids=used_shared_memory_ids,
+                )
+                # MCP 模式处理完成，直接返回
+                return
+
+            # 普通模式：不使用 MCP 工具
+            print("💬 普通模式，不使用工具调用")
             client = OpenAI(
                 api_key=final_api_key,
                 base_url=final_base_url,

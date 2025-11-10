@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "crawl4ai": {
+      "command": "python",
+      "args": ["src/crawl4ai_mcp_server.py"],
+      "env": {},
+      "alwaysAllow": ["crawl_url"],
+      "disabled": false,
+      "description": "Web crawling service using crawl4ai"
+    },
+    "websearch": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse",
+      "alwaysAllow": ["search", "fetchCsdnArticle", "fetchGithubReadme", "fetchJuejinArticle"],
+      "disabled": false,
+      "description": "Multi-engine web search and content fetching service"
+    }
+  }
+}

@@ -576,6 +576,194 @@ class MCPClient:
 
         logger.info(f"Chat loop ended. Total queries processed: {query_count}")
 
+    async def process_query_streaming(
+        self, query: str, messages: Optional[list] = None
+    ):
+        """
+        流式处理查询，实时生成事件
+
+        Args:
+            query: 用户查询
+            messages: 可选的对话历史
+
+        Yields:
+            事件字典，包含以下类型：
+            - {"type": "content", "data": str} - LLM 生成的文本内容
+            - {"type": "tool_call_start", "tool_name": str, "arguments": dict} - 工具调用开始
+            - {"type": "tool_call_end", "tool_name": str, "result": str} - 工具调用完成
+            - {"type": "thinking", "status": str} - AI 思考状态
+            - {"type": "error", "error": str} - 错误信息
+            - {"type": "done"} - 处理完成
+        """
+        logger.info(
+            f"Processing streaming query: {query[:100]}{'...' if len(query) > 100 else ''}"
+        )
+
+        # Initialize or use provided messages
+        if messages is None:
+            messages = []
+
+        # Append the new user query
+        messages.append({"role": "user", "content": query})
+
+        logger.debug("Fetching available tools from all servers")
+
+        # Get all tools from server manager
+        available_tools = await self.server_manager.get_all_tools()
+
+        if not available_tools:
+            logger.error("No tools available from connected servers")
+            yield {
+                "type": "error",
+                "error": "No tools available. Ensure servers are connected.",
+            }
+            return
+
+        logger.info(
+            f"Using {len(self.server_manager.sessions)} server(s) "
+            f"with {len(available_tools)} tool(s) total"
+        )
+
+        iteration = 0
+
+        try:
+            while iteration < self.max_iterations:
+                iteration += 1
+                logger.debug(f"Processing iteration {iteration}/{self.max_iterations}")
+
+                # Notify thinking
+                yield {"type": "thinking", "status": "AI is thinking..."}
+
+                # Call OpenAI API with streaming
+                logger.debug("Calling OpenAI API for streaming response")
+                response = self.openai.chat.completions.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    messages=messages,
+                    tools=available_tools,
+                    stream=True,  # Enable streaming
+                )
+
+                # Collect complete message including tool_calls
+                full_message = {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": None,
+                }
+                tool_calls_dict = {}  # Dictionary to accumulate tool call fragments
+
+                # Process streaming response
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+
+                    delta = chunk.choices[0].delta
+
+                    # Stream text content
+                    if delta.content:
+                        full_message["content"] += delta.content
+                        yield {"type": "content", "data": delta.content}
+
+                    # Accumulate tool calls (OpenAI sends tool_calls in fragments)
+                    if delta.tool_calls:
+                        for tc_delta in delta.tool_calls:
+                            idx = tc_delta.index
+                            if idx not in tool_calls_dict:
+                                tool_calls_dict[idx] = {
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                }
+
+                            if tc_delta.id:
+                                tool_calls_dict[idx]["id"] = tc_delta.id
+                            if tc_delta.function:
+                                if tc_delta.function.name:
+                                    tool_calls_dict[idx]["function"][
+                                        "name"
+                                    ] = tc_delta.function.name
+                                if tc_delta.function.arguments:
+                                    tool_calls_dict[idx]["function"][
+                                        "arguments"
+                                    ] += tc_delta.function.arguments
+
+                # Convert tool_calls_dict to list if present
+                if tool_calls_dict:
+                    full_message["tool_calls"] = [
+                        tool_calls_dict[i] for i in sorted(tool_calls_dict.keys())
+                    ]
+
+                # If no tool calls, we're done
+                if not full_message["tool_calls"]:
+                    logger.debug("No tool calls in response, completing query")
+                    yield {"type": "done"}
+                    return
+
+                logger.info(f"Processing {len(full_message['tool_calls'])} tool call(s)")
+
+                # Add assistant message to conversation
+                messages.append(full_message)
+
+                # Execute each tool call
+                for tool_call in full_message["tool_calls"]:
+                    tool_name = tool_call["function"]["name"]
+                    tool_args = json.loads(tool_call["function"]["arguments"])
+
+                    logger.info(f"Executing tool: {tool_name}")
+                    logger.debug(f"Tool arguments: {tool_args}")
+
+                    # Notify tool call started
+                    yield {
+                        "type": "tool_call_start",
+                        "tool_name": tool_name,
+                        "arguments": tool_args,
+                    }
+
+                    start_time = time.time()
+                    try:
+                        # Route tool call to appropriate server
+                        result = await self.server_manager.call_tool(
+                            tool_name, tool_args
+                        )
+                        elapsed_time = time.time() - start_time
+                        logger.info(f"Tool {tool_name} completed in {elapsed_time:.2f}s")
+                        result_str = str(result.content)
+                        logger.debug(f"Tool result preview: {result_str[:200]}...")
+
+                        # Notify tool call completed
+                        yield {
+                            "type": "tool_call_end",
+                            "tool_name": tool_name,
+                            "result": result_str[:500],  # Truncate for display
+                            "elapsed_time": elapsed_time,
+                        }
+
+                        # Add tool result to messages
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call["id"],
+                                "content": result_str,
+                            }
+                        )
+                    except Exception as e:
+                        error_msg = f"Tool execution failed for {tool_name}: {str(e)}"
+                        logger.error(error_msg)
+                        yield {"type": "error", "error": error_msg}
+                        raise
+
+            # Check if we hit max iterations
+            if iteration >= self.max_iterations:
+                warning_msg = f"Reached maximum iterations ({self.max_iterations}). Processing may be incomplete."
+                logger.warning(warning_msg)
+                yield {"type": "error", "error": warning_msg}
+
+            yield {"type": "done"}
+
+        except Exception as e:
+            logger.exception(f"Error during streaming query processing: {str(e)}")
+            yield {"type": "error", "error": str(e)}
+
     async def cleanup(self):
         """Clean up resources"""
         logger.info("Starting cleanup process")
