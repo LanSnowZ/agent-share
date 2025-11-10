@@ -1981,6 +1981,8 @@ def generate_with_mcp_tools(
     shared_memory_enabled: bool,
     personal_memory_enabled: bool,
     used_shared_memory_ids: List[str],
+    api_key: str,
+    base_url: str,
 ):
     """
     使用 MCP 工具调用的流式生成器
@@ -1994,6 +1996,8 @@ def generate_with_mcp_tools(
         shared_memory_enabled: 是否启用共享记忆
         personal_memory_enabled: 是否启用个人记忆
         used_shared_memory_ids: 使用的共享记忆 ID 列表
+        api_key: OpenAI API Key
+        base_url: OpenAI Base URL
 
     Yields:
         SSE 格式的数据流
@@ -2005,6 +2009,15 @@ def generate_with_mcp_tools(
         if not mcp_client:
             logger.warning("MCP 客户端初始化失败，回退到普通模式")
             yield f"data: {json.dumps({'error': 'MCP 客户端初始化失败'}, ensure_ascii=False)}\n\n"
+            return
+
+        # 设置用户的 API 配置
+        try:
+            mcp_client.set_api_config(api_key=api_key, base_url=base_url, model=model)
+            logger.info(f"为用户 {username} 设置 MCP API 配置: {base_url}, {model}")
+        except Exception as e:
+            logger.error(f"设置 API 配置失败: {e}")
+            yield f"data: {json.dumps({'error': f'设置 API 配置失败: {str(e)}'}, ensure_ascii=False)}\n\n"
             return
 
         # 获取事件循环
@@ -2472,6 +2485,8 @@ def chat_direct():
                     shared_memory_enabled=shared_memory_enabled,
                     personal_memory_enabled=personal_memory_enabled,
                     used_shared_memory_ids=used_shared_memory_ids,
+                    api_key=final_api_key,  # 传递用户的 API Key
+                    base_url=final_base_url,  # 传递用户的 Base URL
                 )
                 # MCP 模式处理完成，直接返回
                 return

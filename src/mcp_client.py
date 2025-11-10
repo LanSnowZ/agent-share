@@ -316,33 +316,53 @@ class MCPServerManager:
 
 
 class MCPClient:
-    def __init__(self):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None,
+                 model: Optional[str] = None, max_tokens: int = 4000, max_iterations: int = 10):
         # Initialize session and client objects
         logger.debug("Initializing MCPClient")
         self.exit_stack = AsyncExitStack()
         self.server_manager = MCPServerManager(self.exit_stack)
 
-        self.api_key = os.getenv("API_KEY")
-        self.base_url = os.getenv("BASE_URL")
-        self.model = os.getenv("MODEL")
-        self.max_tokens = int(os.getenv("MAX_TOKENS", "1000"))
-        self.max_iterations = int(os.getenv("MAX_ITERATIONS", "10"))
+        # Try to get from parameters first, then fall back to environment variables
+        self.api_key = api_key or os.getenv("API_KEY")
+        self.base_url = base_url or os.getenv("BASE_URL")
+        self.model = model or os.getenv("MODEL")
+        self.max_tokens = max_tokens or int(os.getenv("MAX_TOKENS", "4000"))
+        self.max_iterations = max_iterations or int(os.getenv("MAX_ITERATIONS", "10"))
 
-        # Validate required environment variables
-        if not all([self.api_key, self.base_url, self.model]):
-            logger.error("Missing required environment variables")
-            raise ValueError(
-                "API_KEY, BASE_URL, and MODEL environment variables must be set"
-            )
+        # OpenAI client will be created when needed (lazy initialization)
+        self.openai = None
 
-        logger.debug(
-            f"OpenAI config - Base URL: {self.base_url}, Model: {self.model}, "
-            f"Max Tokens: {self.max_tokens}, Max Iterations: {self.max_iterations}, "
-            f"API Key: {'*' * 10 if self.api_key else 'None'}"
-        )
+        logger.info("MCPClient initialized (API config will be set when needed)")
 
+    def set_api_config(self, api_key: str, base_url: str, model: str):
+        """
+        Set or update API configuration
+
+        Args:
+            api_key: OpenAI API key
+            base_url: OpenAI base URL
+            model: Model name
+        """
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+
+        # Create/recreate OpenAI client
         self.openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        logger.info("MCPClient initialized successfully")
+
+        logger.info(f"API config updated - Base URL: {self.base_url}, Model: {self.model}")
+
+    def _ensure_openai_client(self):
+        """Ensure OpenAI client is initialized"""
+        if self.openai is None:
+            if not all([self.api_key, self.base_url, self.model]):
+                raise ValueError(
+                    "API configuration not set. Please call set_api_config() first or provide "
+                    "API_KEY, BASE_URL, and MODEL environment variables."
+                )
+            self.openai = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            logger.debug(f"OpenAI client created - Base URL: {self.base_url}, Model: {self.model}")
 
     async def connect_to_servers(self, config_path: str):
         """Connect to multiple MCP servers from configuration file
@@ -374,6 +394,9 @@ class MCPClient:
         logger.info(
             f"Processing query: {query[:100]}{'...' if len(query) > 100 else ''}"
         )
+
+        # Ensure OpenAI client is initialized
+        self._ensure_openai_client()
 
         # Initialize or use provided messages
         if messages is None:
@@ -598,6 +621,14 @@ class MCPClient:
         logger.info(
             f"Processing streaming query: {query[:100]}{'...' if len(query) > 100 else ''}"
         )
+
+        # Ensure OpenAI client is initialized
+        try:
+            self._ensure_openai_client()
+        except ValueError as e:
+            logger.error(f"API configuration error: {e}")
+            yield {"type": "error", "error": str(e)}
+            return
 
         # Initialize or use provided messages
         if messages is None:
