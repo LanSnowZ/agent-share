@@ -979,6 +979,81 @@
       border-color: #60a5fa;
     }
 
+    /* MCP 工具调用按钮样式 */
+    .mcp-tools-btn {
+      background: #f9fafb;
+      color: #374151;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+
+    .mcp-tools-btn:hover {
+      background: #e5e7eb;
+      border-color: #9ca3af;
+    }
+
+    .mcp-tools-btn:focus {
+      outline: none;
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+    }
+
+    .mcp-tools-btn.active {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fbbf24;
+    }
+
+    .mcp-tools-btn.active:hover {
+      background: #fde68a;
+      border-color: #f59e0b;
+    }
+
+    .mcp-tools-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* 工具调用状态指示器 */
+    .tool-call-indicator {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #fffbeb;
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #92400e;
+      margin-top: 8px;
+    }
+
+    .tool-call-indicator.active {
+      display: flex;
+    }
+
+    .tool-call-indicator .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #fbbf24;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     .chat-input {
       flex: 1;
       min-height: 120px;
@@ -1773,6 +1848,17 @@ var _hmt = _hmt || [];
                   </svg>
                   开启记忆
                 </button>
+                <button class="mcp-tools-btn" id="mcpToolsBtn" title="启用 MCP 工具调用（网页爬取、文件操作等）">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                  </svg>
+                  工具调用
+                </button>
+              </div>
+              <!-- 工具调用状态指示器 -->
+              <div class="tool-call-indicator" id="toolCallIndicator">
+                <div class="spinner"></div>
+                <span id="toolCallStatus">工具调用中...</span>
               </div>
               <button class="send-btn" id="sendBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2087,6 +2173,7 @@ var _hmt = _hmt || [];
     let selectedModel = 'gpt-4o-mini';
     let sharedMemoryEnabled = true;  // 默认开启共享记忆
     let personalMemoryEnabled = true;  // 个人记忆默认启用
+    let mcpToolsEnabled = false;  // MCP 工具调用默认关闭
     let currentAbortController = null;  // 用于终止当前请求
     let backendUrl = 'https://baijia.online/agent-share/'; // 后端URL
 
@@ -2106,6 +2193,9 @@ var _hmt = _hmt || [];
     const newChatBtn = document.getElementById('newChatBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsModal = document.getElementById('settingsModal');
+    const mcpToolsBtn = document.getElementById('mcpToolsBtn');
+    const toolCallIndicator = document.getElementById('toolCallIndicator');
+    const toolCallStatus = document.getElementById('toolCallStatus');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
     const settingsForm = document.getElementById('settingsForm');
     const aiModelSelector = document.getElementById('aiModelSelector');
@@ -3009,7 +3099,10 @@ var _hmt = _hmt || [];
 
       // 共享记忆按钮
       sharedMemoryBtn.addEventListener('click', toggleSharedMemory);
-      
+
+      // MCP 工具调用按钮
+      mcpToolsBtn.addEventListener('click', toggleMcpTools);
+
       // 退出登录按钮
       const logoutBtn = document.getElementById('logoutBtn');
       if (logoutBtn) {
@@ -3172,7 +3265,8 @@ var _hmt = _hmt || [];
           model: selectedModel,
           conversation_id: currentChatId,
           shared_memory_enabled: sharedMemoryEnabled,
-          personal_memory_enabled: personalMemoryEnabled
+          personal_memory_enabled: personalMemoryEnabled,
+          mcp_enabled: mcpToolsEnabled  // 🛠️ MCP 工具调用开关
         };
         
         // 如果是从分享链接访问，添加分享消息信息
@@ -3216,12 +3310,28 @@ var _hmt = _hmt || [];
                 if (line.startsWith('data: ')) {
                   try {
                     const data = JSON.parse(line.substring(6));
-                    
+
+                    // 🛠️ 处理工具调用事件
+                    if (data.tool_status) {
+                      if (data.tool_status === 'start') {
+                        showToolCallIndicator(data.tool_name, 'start');
+                      } else if (data.tool_status === 'end') {
+                        showToolCallIndicator(data.tool_name, 'end');
+                      }
+                      continue;
+                    }
+
+                    // 💭 处理思考状态
+                    if (data.thinking) {
+                      continue;
+                    }
+
                     if (data.error) {
+                      hideToolCallIndicator();
                       updateStreamingMessage(streamingMessageDiv, `错误: ${data.error}`, true);
                       break;
                     }
-                    
+
                     // 🔥 先处理content
                     if (data.content) {
                       fullResponse += data.content;
@@ -3244,8 +3354,9 @@ var _hmt = _hmt || [];
                     
                     // 🔥 最后检查done
                     if (data.done) {
+                      hideToolCallIndicator();  // 隐藏工具调用指示器
                       updateStreamingMessage(streamingMessageDiv, fullResponse, true, sharedMemoryEnabled);
-                      
+
                       responseCompleted = true;
                       sendBtn.classList.remove('hidden');
                       sendBtn.disabled = false;
@@ -3273,9 +3384,28 @@ var _hmt = _hmt || [];
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.substring(6));
-                
+
+                // 🛠️ 处理工具调用事件
+                if (data.tool_status) {
+                  if (data.tool_status === 'start') {
+                    showToolCallIndicator(data.tool_name, 'start');
+                    console.log('🔧 工具调用开始:', data.tool_name, data.arguments);
+                  } else if (data.tool_status === 'end') {
+                    showToolCallIndicator(data.tool_name, 'end');
+                    console.log('✅ 工具调用完成:', data.tool_name, `耗时 ${data.elapsed_time?.toFixed(2)}s`);
+                  }
+                  continue;  // 继续处理下一个事件
+                }
+
+                // 💭 处理思考状态
+                if (data.thinking) {
+                  console.log('💭', data.thinking);
+                  continue;
+                }
+
                 if (data.error) {
                   // 显示错误
+                  hideToolCallIndicator();
                   updateStreamingMessage(streamingMessageDiv, `错误: ${data.error}`, true);
                   break;
                 }
@@ -3303,8 +3433,9 @@ var _hmt = _hmt || [];
                 // 最后检查done信号
                 if (data.done) {
                   // 最终渲染，应用语法高亮，添加记忆标记
+                  hideToolCallIndicator();  // 隐藏工具调用指示器
                   updateStreamingMessage(streamingMessageDiv, fullResponse, true, sharedMemoryEnabled);
-                  
+
                   // 🚀 立即显示发送按钮，隐藏停止按钮
                   responseCompleted = true;
                   sendBtn.classList.remove('hidden');
@@ -4930,7 +5061,7 @@ var _hmt = _hmt || [];
     // 切换个人记忆状态
     function toggleSharedMemory() {
       personalMemoryEnabled = !personalMemoryEnabled;
-      
+
       // 当个人记忆关闭时，共享记忆也自动关闭
       if (!personalMemoryEnabled) {
         sharedMemoryEnabled = false;
@@ -4938,12 +5069,63 @@ var _hmt = _hmt || [];
         // 当个人记忆开启时，共享记忆也自动开启
         sharedMemoryEnabled = true;
       }
-      
+
       updateMemoryButtonDisplay();
-      
+
       if (personalMemoryEnabled) {
       } else {
       }
+    }
+
+    // 切换 MCP 工具调用
+    function toggleMcpTools() {
+      mcpToolsEnabled = !mcpToolsEnabled;
+      updateMcpButtonDisplay();
+
+      if (mcpToolsEnabled) {
+        console.log('🛠️ MCP 工具调用已启用');
+      } else {
+        console.log('💬 MCP 工具调用已禁用');
+      }
+    }
+
+    // 更新 MCP 按钮显示
+    function updateMcpButtonDisplay() {
+      if (mcpToolsEnabled) {
+        mcpToolsBtn.classList.add('active');
+        mcpToolsBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          工具已启用
+        `;
+      } else {
+        mcpToolsBtn.classList.remove('active');
+        mcpToolsBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          工具调用
+        `;
+      }
+    }
+
+    // 显示工具调用指示器
+    function showToolCallIndicator(toolName, status = 'start') {
+      if (status === 'start') {
+        toolCallStatus.textContent = `正在调用: ${toolName}`;
+        toolCallIndicator.classList.add('active');
+      } else if (status === 'end') {
+        toolCallStatus.textContent = `完成: ${toolName}`;
+        setTimeout(() => {
+          toolCallIndicator.classList.remove('active');
+        }, 2000);
+      }
+    }
+
+    // 隐藏工具调用指示器
+    function hideToolCallIndicator() {
+      toolCallIndicator.classList.remove('active');
     }
 
     // 当前显示的记忆消息索引
