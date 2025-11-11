@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -39,7 +38,7 @@ from sharememory_user.models import UserProfile
 from sharememory_user.pipeline_retrieve import RetrievePipeline
 from sharememory_user.storage import JsonStore
 from src.config import cache_path_settings
-from src.email import send_email
+from src.email_utils import send_email
 from src.mcp_manager import get_event_loop, get_or_create_mcp_client
 
 dotenv.load_dotenv()
@@ -362,10 +361,10 @@ def get_ingest_pipeline():
     return ingest_pipeline
 
 
-def save_chain_to_shared_memory(user_id: str, chain_pages: List[Dict]):
+def save_chain_to_shared_memory(user_id: str, chain_pages: List[Dict]) -> bool:
     """将对话链保存到共享记忆"""
     if not chain_pages or len(chain_pages) < 1:
-        return
+        return False
 
     try:
         # 获取ingest pipeline实例
@@ -393,10 +392,13 @@ def save_chain_to_shared_memory(user_id: str, chain_pages: List[Dict]):
             print(
                 f"✅ 成功将思维链存储到共享记忆，Memory ID: {memory_item.id}, 对话轮数: {len(chain_pages)}"
             )
+            return True
         else:
             print("⚠️ 思维链未通过质量检查，未存储到共享记忆")
+            return False
     except Exception as e:
         print(f"❌ 存储思维链到共享记忆失败: {e}")
+    return False
 
 
 def get_page_from_mid_term(memoryos_instance, page_id: str) -> Optional[Dict]:
@@ -489,7 +491,12 @@ def trace_complete_chain(memoryos_instance, start_qa_list: List[Dict]) -> List[D
     return complete_chain
 
 
-def check_and_store_chain_break_from_memoryos(user_id: str, memoryos_instance) -> None:
+def check_and_store_chain_break_from_memoryos(
+    user_id: str,
+    memoryos_instance,
+    conversation_id: Optional[str] = None,
+    project_name: str = "default_project",
+) -> None:
     """从MemoryOS短期记忆检测思维链断裂并存储到共享记忆
 
     在每次add_memory后调用，检测短期记忆中最后两条的连续性。
@@ -550,7 +557,11 @@ def check_and_store_chain_break_from_memoryos(user_id: str, memoryos_instance) -
                 }
                 for qa in complete_chain
             ]
-            save_chain_to_shared_memory(user_id, chain_pages)
+            stored = save_chain_to_shared_memory(user_id, chain_pages)
+            if stored and conversation_id:
+                mark_conversation_shared_contribution(
+                    user_id, conversation_id, project_name=project_name
+                )
 
             # 🔪 断开链接：将最后一条（新话题开头）的 pre_page 置空
             old_pre_page_id = last_qa.get("pre_page")
@@ -594,10 +605,10 @@ def ensure_user_memoryos(
     if user_id not in memoryos_instances:
         try:
             # 创建用户数据目录 - 按照项目/用户层级结构: eval/memoryos_data/{project}/users/{user_id}
-            project_dir = os.path.join(
-                cache_path_settings.cache_path_settings.MEMORYOS_DATA_DIR, project_name
+            user_data_dir = os.path.join(
+                cache_path_settings.MEMORYOS_DATA_DIR, project_name, 
             )
-            user_data_dir = project_dir
+            os.makedirs(user_data_dir, exist_ok=True)
             os.makedirs(user_data_dir, exist_ok=True)
 
             print(f"📁 创建MemoryOS数据目录: {user_data_dir}")
@@ -673,6 +684,7 @@ def get_chat_conversations(
     user_id: str, project_name: str = "default_project"
 ) -> List[Dict[str, Any]]:
     """获取用户的聊天对话列表"""
+    conversations: List[Dict[str, Any]] = []
     conversations_path = os.path.join(
         cache_path_settings.MEMORYOS_DATA_DIR,
         project_name,
@@ -681,9 +693,77 @@ def get_chat_conversations(
         "conversations.json",
     )
     if os.path.exists(conversations_path):
-        with open(conversations_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+        try:
+            with open(conversations_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, list):
+                for convo in loaded:
+                    if isinstance(convo, dict):
+                        convo.setdefault("contributed_shared_memory", False)
+                if loaded:
+                    return loaded
+            conversations = loaded if isinstance(loaded, list) else []
+        except Exception as e:
+            print(f"读取对话列表失败（conversations.json损坏或格式错误）: {e}")
+
+    # fallback: 扫描该用户目录下的所有 chat_*.json 文件并构建列表
+    user_dir = os.path.join(
+        cache_path_settings.MEMORYOS_DATA_DIR, project_name, "users", user_id
+    )
+    if not os.path.isdir(user_dir):
+        return conversations
+
+    chat_files: List[Dict[str, Any]] = []
+    for filename in os.listdir(user_dir):
+        if not (filename.startswith("chat_") and filename.endswith(".json")):
+            continue
+        chat_path = os.path.join(user_dir, filename)
+        try:
+            with open(chat_path, "r", encoding="utf-8") as f:
+                chat_data = json.load(f)
+        except Exception as e:
+            print(f"读取对话文件失败 ({chat_path}): {e}")
+            continue
+
+        conversation_id = chat_data.get("id") or filename.rsplit(".", 1)[0]
+        title = chat_data.get("title") or ""
+        if not title:
+            first_user_message = next(
+                (
+                    msg.get("content", "")
+                    for msg in chat_data.get("messages", [])
+                    if isinstance(msg, dict) and msg.get("type") == "user"
+                ),
+                "新对话",
+            )
+            title = first_user_message[:30] + (
+                "..." if len(first_user_message) > 30 else ""
+            )
+
+        chat_files.append(
+            {
+                "id": conversation_id,
+                "title": title or "新对话",
+                "created_at": chat_data.get("created_at"),
+                "updated_at": chat_data.get("updated_at"),
+                "model": chat_data.get("model"),
+                "contributed_shared_memory": bool(
+                    chat_data.get("contributed_shared_memory")
+                ),
+            }
+        )
+
+    # 使用 updated_at (如果存在) 倒序排序，确保最新对话在前
+    chat_files.sort(
+        key=lambda item: item.get("updated_at") or item.get("created_at") or "",
+        reverse=True,
+    )
+
+    if conversations:
+        # conversations.json 已有数据，优先返回原数据，若为空则回退扫描结果
+        return conversations
+
+    return chat_files
 
 
 def save_chat_conversations(
@@ -806,6 +886,72 @@ def save_used_memories_to_conversation(
         print(f"⚠️ 保存使用的记忆ID失败: {e}")
 
 
+def mark_conversation_shared_contribution(
+    user_id: str, conversation_id: str, project_name: str = "default_project"
+) -> None:
+    """标记指定对话参与了共享记忆的构建"""
+    conversation_file = os.path.join(
+        cache_path_settings.MEMORYOS_DATA_DIR,
+        project_name,
+        "users",
+        user_id,
+        f"{conversation_id}.json",
+    )
+
+    if not os.path.exists(conversation_file):
+        print(
+            f"⚠️ 无法标记对话共享记忆贡献，文件不存在: {conversation_file}"
+        )
+        return
+
+    try:
+        with open(conversation_file, "r", encoding="utf-8") as f:
+            conversation_data = json.load(f)
+    except Exception as e:
+        print(f"⚠️ 读取对话文件失败，无法标记共享记忆贡献: {e}")
+        return
+
+    if not conversation_data.get("contributed_shared_memory"):
+        conversation_data["contributed_shared_memory"] = True
+        try:
+            with open(conversation_file, "w", encoding="utf-8") as f:
+                json.dump(conversation_data, f, ensure_ascii=False, indent=2)
+            print(
+                f"⭐ 已标记对话 {conversation_id} 参与构建共享记忆"
+            )
+        except Exception as e:
+            print(f"⚠️ 更新对话文件失败: {e}")
+
+    # 同步更新 conversations.json（如果存在的话）
+    conversations_path = os.path.join(
+        cache_path_settings.MEMORYOS_DATA_DIR,
+        project_name,
+        "users",
+        user_id,
+        "conversations.json",
+    )
+    if not os.path.exists(conversations_path):
+        return
+
+    try:
+        with open(conversations_path, "r", encoding="utf-8") as f:
+            conversations = json.load(f)
+        if isinstance(conversations, list):
+            updated = False
+            for convo in conversations:
+                if convo.get("id") == conversation_id:
+                    if not convo.get("contributed_shared_memory"):
+                        convo["contributed_shared_memory"] = True
+                        updated = True
+                    break
+            if updated:
+                with open(conversations_path, "w", encoding="utf-8") as f:
+                    json.dump(conversations, f, ensure_ascii=False, indent=2)
+                print("⭐ 已同步 conversations.json 中的共享记忆标记")
+    except Exception as e:
+        print(f"⚠️ 更新 conversations.json 失败: {e}")
+
+
 def save_chat_conversation(
     username,
     conversation_id,
@@ -844,6 +990,7 @@ def save_chat_conversation(
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "messages": [],
         "used_memories": [],  # 添加used_memories字段
+        "contributed_shared_memory": False,
     }
 
     if os.path.exists(conversation_file):
@@ -853,6 +1000,8 @@ def save_chat_conversation(
             # 确保used_memories字段存在
             if "used_memories" not in conversation_data:
                 conversation_data["used_memories"] = []
+            if "contributed_shared_memory" not in conversation_data:
+                conversation_data["contributed_shared_memory"] = False
         except Exception as e:
             print(f"读取对话文件失败: {e}")
 
@@ -2694,7 +2843,8 @@ def chat_direct():
                         print(f"⚠️ 累计共享记忆贡献值失败: {e}")
 
             # 🚀 立即发送完成信号和conversation_id，不要等待其他操作
-            yield f"data: {json.dumps({'done': True, 'conversation_id': saved_conversation_id or current_conversation_id}, ensure_ascii=False)}\n\n"
+            active_conversation_id = saved_conversation_id or current_conversation_id
+            yield f"data: {json.dumps({'done': True, 'conversation_id': active_conversation_id}, ensure_ascii=False)}\n\n"
 
             # 然后再做耗时的保存操作（这些操作在后台完成，不影响前端显示）
             # 🚫 如果对话被中断（通过 save_interrupted_conversation 处理），则不保存到记忆
@@ -2710,7 +2860,10 @@ def chat_direct():
                         if shared_memory_enabled:
                             try:
                                 check_and_store_chain_break_from_memoryos(
-                                    username, memoryos_instance
+                                    username,
+                                    memoryos_instance,
+                                    conversation_id=active_conversation_id,
+                                    project_name=project_name,
                                 )
                                 print("✅ 思维链检测完成")
                             except Exception as e:

@@ -269,7 +269,7 @@ class RetrievePipeline:
                 tail = e.get("tail", "?")
                 parts.append(f"- ({head}, {rel}, {tail})")
             parts.append("")  # Add empty line between memories
-            with open("cotkg.txt", "a+") as f:
+            with open("local/cotkg.txt", "a+") as f:
                 f.write(cot)
                 f.write("\n\n--- Knowledge Graph ---\n")
                 for e in kg:
