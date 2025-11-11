@@ -1002,7 +1002,7 @@
       border-color: #60a5fa;
     }
 
-    /* MCP 工具调用按钮样式 */
+    /* MCP 联网搜索按钮样式 */
     .mcp-tools-btn {
       background: #f9fafb;
       color: #374151;
@@ -1046,7 +1046,7 @@
       height: 14px;
     }
 
-    /* 工具调用状态指示器 */
+    /* 联网搜索状态指示器 */
     .tool-call-indicator {
       display: none;
       align-items: center;
@@ -1871,17 +1871,17 @@ var _hmt = _hmt || [];
                   </svg>
                   开启记忆
                 </button>
-                <button class="mcp-tools-btn" id="mcpToolsBtn" title="启用 MCP 工具调用（网页爬取、文件操作等）">
+                <button class="mcp-tools-btn" id="mcpToolsBtn" title="启用联网搜索（网页爬取、信息检索等）">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
                   </svg>
                   联网搜索
                 </button>
               </div>
-              <!-- 工具调用状态指示器 -->
+              <!-- 联网搜索状态指示器 -->
               <div class="tool-call-indicator" id="toolCallIndicator">
                 <div class="spinner"></div>
-                <span id="toolCallStatus">工具调用中...</span>
+                <span id="toolCallStatus">联网搜索中...</span>
               </div>
               <button class="send-btn" id="sendBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -3133,7 +3133,7 @@ var _hmt = _hmt || [];
       // 共享记忆按钮
       sharedMemoryBtn.addEventListener('click', toggleSharedMemory);
 
-      // MCP 工具调用按钮
+      // MCP 联网搜索按钮
       mcpToolsBtn.addEventListener('click', toggleMcpTools);
 
       // 退出登录按钮
@@ -5130,15 +5130,15 @@ var _hmt = _hmt || [];
       }
     }
 
-    // 切换 MCP 工具调用
+    // 切换 MCP 联网搜索
     function toggleMcpTools() {
       mcpToolsEnabled = !mcpToolsEnabled;
       updateMcpButtonDisplay();
 
       if (mcpToolsEnabled) {
-        console.log('🛠️ MCP 工具调用已启用');
+        console.log('🛠️ MCP 联网搜索已启用');
       } else {
-        console.log('💬 MCP 工具调用已禁用');
+        console.log('💬 MCP 联网搜索已禁用');
       }
     }
 
@@ -5150,7 +5150,7 @@ var _hmt = _hmt || [];
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
           </svg>
-          工具已启用
+          搜索已启用
         `;
       } else {
         mcpToolsBtn.classList.remove('active');
@@ -5158,25 +5158,25 @@ var _hmt = _hmt || [];
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
           </svg>
-          工具调用
+          联网搜索
         `;
       }
     }
 
-    // 显示工具调用指示器
+    // 显示联网搜索指示器
     function showToolCallIndicator(toolName, status = 'start') {
       if (status === 'start') {
-        toolCallStatus.textContent = `正在调用: ${toolName}`;
+        toolCallStatus.textContent = `正在搜索: ${toolName}`;
         toolCallIndicator.classList.add('active');
       } else if (status === 'end') {
-        toolCallStatus.textContent = `完成: ${toolName}`;
+        toolCallStatus.textContent = `搜索完成: ${toolName}`;
         setTimeout(() => {
           toolCallIndicator.classList.remove('active');
         }, 2000);
       }
     }
 
-    // 隐藏工具调用指示器
+    // 隐藏联网搜索指示器
     function hideToolCallIndicator() {
       toolCallIndicator.classList.remove('active');
     }
