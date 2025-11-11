@@ -1,20 +1,21 @@
-import time
-import uuid
-import openai
-import numpy as np
-from sentence_transformers import SentenceTransformer
+import inspect
 import json
 import os
-import inspect
-from functools import wraps
 import re
+import time
+import uuid
+
+import numpy as np
+
 try:
-    from . import prompts # 尝试相对导入
+    from . import prompts  # 尝试相对导入
 except ImportError:
-    import prompts # 回退到绝对导入
-from openai import OpenAI
-from concurrent.futures import ThreadPoolExecutor, as_completed
+    import prompts  # 回退到绝对导入
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from openai import OpenAI
+
 
 def clean_reasoning_model_output(text):
     """
@@ -23,16 +24,18 @@ def clean_reasoning_model_output(text):
     """
     if not text:
         return text
-    
+
     import re
+
     # 移除<think>...</think>标签及其内容
-    cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    cleaned_text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
     # 清理可能产生的多余空白行
-    cleaned_text = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned_text)
+    cleaned_text = re.sub(r"\n\s*\n\s*\n", "\n\n", cleaned_text)
     # 移除开头和结尾的空白
     cleaned_text = cleaned_text.strip()
-    
+
     return cleaned_text
+
 
 # ---- OpenAI Client ----
 class OpenAIClient:
@@ -53,7 +56,7 @@ class OpenAIClient:
                 model=model,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
             )
             raw_content = response.choices[0].message.content.strip()
             # 自动清理推理模型的<think>标签
@@ -66,7 +69,9 @@ class OpenAIClient:
 
     def chat_completion_async(self, model, messages, temperature=0.7, max_tokens=2000):
         """异步版本的chat_completion"""
-        return self.executor.submit(self.chat_completion, model, messages, temperature, max_tokens)
+        return self.executor.submit(
+            self.chat_completion, model, messages, temperature, max_tokens
+        )
 
     def batch_chat_completion(self, requests):
         """
@@ -79,10 +84,10 @@ class OpenAIClient:
                 model=req.get("model", "gpt-4o-mini"),
                 messages=req["messages"],
                 temperature=req.get("temperature", 0.7),
-                max_tokens=req.get("max_tokens", 2000)
+                max_tokens=req.get("max_tokens", 2000),
             )
             futures.append(future)
-        
+
         results = []
         for future in as_completed(futures):
             try:
@@ -91,12 +96,13 @@ class OpenAIClient:
             except Exception as e:
                 print(f"Error in batch completion: {e}")
                 results.append("Error: Could not get response from LLM.")
-        
+
         return results
 
     def shutdown(self):
         """关闭线程池"""
         self.executor.shutdown(wait=True)
+
 
 # ---- Parallel Processing Utilities ----
 def run_parallel_tasks(tasks, max_workers=3):
@@ -116,19 +122,24 @@ def run_parallel_tasks(tasks, max_workers=3):
                 results.append(None)
         return results
 
+
 # ---- Basic Utilities ----
 def get_timestamp():
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
+
 def generate_id(prefix="id"):
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
 
 def ensure_directory_exists(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
+
 # ---- Embedding Utilities ----
 _model_cache = {}
 _embedding_cache = {}  # 添加embedding缓存
+
 
 def _get_valid_kwargs(func, kwargs):
     """Helper to filter kwargs for a given function's signature."""
@@ -139,6 +150,7 @@ def _get_valid_kwargs(func, kwargs):
     except (ValueError, TypeError):
         # Fallback for functions/methods where signature inspection is not straightforward
         return kwargs
+
 
 def get_embedding(text, model_name="all-MiniLM-L6-v2", use_cache=True, **kwargs):
     """
@@ -156,43 +168,59 @@ def get_embedding(text, model_name="all-MiniLM-L6-v2", use_cache=True, **kwargs)
     :return: 文本的embedding向量 (numpy array)。
     """
     model_config_key = json.dumps({"model_name": model_name, **kwargs}, sort_keys=True)
-    
+
     if use_cache:
         cache_key = f"{model_config_key}::{hash(text)}"
         if cache_key in _embedding_cache:
             return _embedding_cache[cache_key]
-    
+
     # --- Model Loading ---
-    model_init_key = json.dumps({"model_name": model_name, **{k:v for k,v in kwargs.items() if k not in ['batch_size', 'max_length']}}, sort_keys=True)
+    model_init_key = json.dumps(
+        {
+            "model_name": model_name,
+            **{
+                k: v for k, v in kwargs.items() if k not in ["batch_size", "max_length"]
+            },
+        },
+        sort_keys=True,
+    )
     if model_init_key not in _model_cache:
         print(f"Loading model: {model_name}...")
-        if 'bge-m3' in model_name.lower():
+        if "bge-m3" in model_name.lower():
             try:
                 from FlagEmbedding import BGEM3FlagModel
+
                 init_kwargs = _get_valid_kwargs(BGEM3FlagModel.__init__, kwargs)
                 print(f"-> Using BGEM3FlagModel with init kwargs: {init_kwargs}")
                 _model_cache[model_init_key] = BGEM3FlagModel(model_name, **init_kwargs)
             except ImportError:
-                raise ImportError("Please install FlagEmbedding: 'pip install -U FlagEmbedding' to use bge-m3 model.")
-        else: # Default handler for SentenceTransformer-based models (like Qwen, all-MiniLM, etc.)
+                raise ImportError(
+                    "Please install FlagEmbedding: 'pip install -U FlagEmbedding' to use bge-m3 model."
+                )
+        else:  # Default handler for SentenceTransformer-based models (like Qwen, all-MiniLM, etc.)
             try:
                 from sentence_transformers import SentenceTransformer
+
                 init_kwargs = _get_valid_kwargs(SentenceTransformer.__init__, kwargs)
                 print(f"-> Using SentenceTransformer with init kwargs: {init_kwargs}")
-                _model_cache[model_init_key] = SentenceTransformer(model_name, **init_kwargs)
+                _model_cache[model_init_key] = SentenceTransformer(
+                    model_name, **init_kwargs
+                )
             except ImportError:
-                raise ImportError("Please install sentence-transformers: 'pip install -U sentence-transformers' to use this model.")
-            
+                raise ImportError(
+                    "Please install sentence-transformers: 'pip install -U sentence-transformers' to use this model."
+                )
+
     model = _model_cache[model_init_key]
-    
+
     # --- Encoding ---
     embedding = None
-    if 'bge-m3' in model_name.lower():
+    if "bge-m3" in model_name.lower():
         encode_kwargs = _get_valid_kwargs(model.encode, kwargs)
         print(f"-> Encoding with BGEM3FlagModel using kwargs: {encode_kwargs}")
         result = model.encode([text], **encode_kwargs)
-        embedding = result['dense_vecs'][0]
-    else: # Default to SentenceTransformer-based models
+        embedding = result["dense_vecs"][0]
+    else:  # Default to SentenceTransformer-based models
         encode_kwargs = _get_valid_kwargs(model.encode, kwargs)
         print(f"-> Encoding with SentenceTransformer using kwargs: {encode_kwargs}")
         embedding = model.encode([text], **encode_kwargs)[0]
@@ -208,7 +236,7 @@ def get_embedding(text, model_name="all-MiniLM-L6-v2", use_cache=True, **kwargs)
                 except KeyError:
                     pass
             print("Cleaned embedding cache to prevent memory overflow")
-    
+
     return embedding
 
 
@@ -218,6 +246,7 @@ def clear_embedding_cache():
     _embedding_cache.clear()
     print("Embedding cache cleared")
 
+
 def normalize_vector(vec):
     vec = np.array(vec, dtype=np.float32)
     norm = np.linalg.norm(vec)
@@ -225,34 +254,51 @@ def normalize_vector(vec):
         return vec
     return vec / norm
 
+
 # ---- Time Decay Function ----
 def compute_time_decay(event_timestamp_str, current_timestamp_str, tau_hours=24):
     from datetime import datetime
+
     fmt = "%Y-%m-%d %H:%M:%S"
     try:
         t_event = datetime.strptime(event_timestamp_str, fmt)
         t_current = datetime.strptime(current_timestamp_str, fmt)
         delta_hours = (t_current - t_event).total_seconds() / 3600.0
         return np.exp(-delta_hours / tau_hours)
-    except ValueError: # Handle cases where timestamp might be invalid
-        return 0.1 # Default low recency
+    except ValueError:  # Handle cases where timestamp might be invalid
+        return 0.1  # Default low recency
 
 
 # ---- LLM-based Utility Functions ----
 
+
 def gpt_summarize_dialogs(dialogs, client: OpenAIClient, model="gpt-4o-mini"):
-    dialog_text = "\n".join([f"User: {d.get('user_input','')} Assistant: {d.get('agent_response','')}" for d in dialogs])
+    dialog_text = "\n".join(
+        [
+            f"User: {d.get('user_input', '')} Assistant: {d.get('agent_response', '')}"
+            for d in dialogs
+        ]
+    )
     messages = [
         {"role": "system", "content": prompts.SUMMARIZE_DIALOGS_SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.SUMMARIZE_DIALOGS_USER_PROMPT.format(dialog_text=dialog_text)}
+        {
+            "role": "user",
+            "content": prompts.SUMMARIZE_DIALOGS_USER_PROMPT.format(
+                dialog_text=dialog_text
+            ),
+        },
     ]
     print("Calling LLM to generate topic summary...")
     return client.chat_completion(model=model, messages=messages)
 
+
 def gpt_generate_multi_summary(text, client: OpenAIClient, model="gpt-4o-mini"):
     messages = [
         {"role": "system", "content": prompts.MULTI_SUMMARY_SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.MULTI_SUMMARY_USER_PROMPT.format(text=text)}
+        {
+            "role": "user",
+            "content": prompts.MULTI_SUMMARY_USER_PROMPT.format(text=text),
+        },
     ]
     print("Calling LLM to generate multi-topic summary...")
     response_text = client.chat_completion(model=model, messages=messages)
@@ -281,7 +327,9 @@ def gpt_generate_multi_summary(text, client: OpenAIClient, model="gpt-4o-mini"):
         summaries = json.loads(response_text_sanitized)
         # 验证JSON结构，确保包含必要的字段
         if not isinstance(summaries, list):
-            print(f"Warning: Expected JSON array, got {type(summaries)}: {response_text_sanitized}")
+            print(
+                f"Warning: Expected JSON array, got {type(summaries)}: {response_text_sanitized}"
+            )
             summaries = []
         else:
             # 验证每个summary项的结构
@@ -291,7 +339,9 @@ def gpt_generate_multi_summary(text, client: OpenAIClient, model="gpt-4o-mini"):
                     print(f"Warning: Summary item {i} is not a dict: {summary_item}")
                     continue
                 if "theme" not in summary_item:
-                    print(f"Warning: Summary item {i} missing 'theme' field: {summary_item}")
+                    print(
+                        f"Warning: Summary item {i} missing 'theme' field: {summary_item}"
+                    )
                     continue
                 valid_summaries.append(summary_item)
             summaries = valid_summaries
@@ -299,7 +349,7 @@ def gpt_generate_multi_summary(text, client: OpenAIClient, model="gpt-4o-mini"):
         print(f"Error: Could not parse multi-summary JSON: {e}")
         print(f"Raw response: {response_text}")
         print(f"Sanitized: {response_text_sanitized}")
-        summaries = [] # Return empty list or a default structure
+        summaries = []  # Return empty list or a default structure
     except Exception as e:
         print(f"Error processing multi-summary response: {e}")
         print(f"Raw response: {response_text}")
@@ -308,18 +358,27 @@ def gpt_generate_multi_summary(text, client: OpenAIClient, model="gpt-4o-mini"):
     return {"input": text, "summaries": summaries}
 
 
-def gpt_user_profile_analysis(dialogs, client: OpenAIClient, model="gpt-4o-mini", existing_user_profile="None"):
+def gpt_user_profile_analysis(
+    dialogs, client: OpenAIClient, model="gpt-4o-mini", existing_user_profile="None"
+):
     """
     Analyze and update user personality profile from dialogs
     结合现有画像和新对话，直接输出更新后的完整画像
     """
-    conversation = "\n".join([f"User: {d.get('user_input','')} (Timestamp: {d.get('timestamp', '')})\nAssistant: {d.get('agent_response','')} (Timestamp: {d.get('timestamp', '')})" for d in dialogs])
+    conversation = "\n".join(
+        [
+            f"User: {d.get('user_input', '')} (Timestamp: {d.get('timestamp', '')})\nAssistant: {d.get('agent_response', '')} (Timestamp: {d.get('timestamp', '')})"
+            for d in dialogs
+        ]
+    )
     messages = [
         {"role": "system", "content": prompts.PERSONALITY_ANALYSIS_SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.PERSONALITY_ANALYSIS_USER_PROMPT.format(
-            conversation=conversation,
-            existing_user_profile=existing_user_profile
-        )}
+        {
+            "role": "user",
+            "content": prompts.PERSONALITY_ANALYSIS_USER_PROMPT.format(
+                conversation=conversation, existing_user_profile=existing_user_profile
+            ),
+        },
     ]
     print("Calling LLM for user profile analysis and update...")
     result_text = client.chat_completion(model=model, messages=messages)
@@ -328,45 +387,61 @@ def gpt_user_profile_analysis(dialogs, client: OpenAIClient, model="gpt-4o-mini"
 
 def gpt_knowledge_extraction(dialogs, client: OpenAIClient, model="gpt-4o-mini"):
     """Extract user private data and assistant knowledge from dialogs"""
-    conversation = "\n".join([f"User: {d.get('user_input','')} (Timestamp: {d.get('timestamp', '')})\nAssistant: {d.get('agent_response','')} (Timestamp: {d.get('timestamp', '')})" for d in dialogs])
+    conversation = "\n".join(
+        [
+            f"User: {d.get('user_input', '')} (Timestamp: {d.get('timestamp', '')})\nAssistant: {d.get('agent_response', '')} (Timestamp: {d.get('timestamp', '')})"
+            for d in dialogs
+        ]
+    )
     messages = [
         {"role": "system", "content": prompts.KNOWLEDGE_EXTRACTION_SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.KNOWLEDGE_EXTRACTION_USER_PROMPT.format(
-            conversation=conversation
-        )}
+        {
+            "role": "user",
+            "content": prompts.KNOWLEDGE_EXTRACTION_USER_PROMPT.format(
+                conversation=conversation
+            ),
+        },
     ]
     print("Calling LLM for knowledge extraction...")
     result_text = client.chat_completion(model=model, messages=messages)
-    
+
     private_data = "None"
     assistant_knowledge = "None"
 
     try:
         if "【User Private Data】" in result_text:
-            private_data_start = result_text.find("【User Private Data】") + len("【User Private Data】")
+            private_data_start = result_text.find("【User Private Data】") + len(
+                "【User Private Data】"
+            )
             if "【Assistant Knowledge】" in result_text:
                 private_data_end = result_text.find("【Assistant Knowledge】")
                 private_data = result_text[private_data_start:private_data_end].strip()
-                
-                assistant_knowledge_start = result_text.find("【Assistant Knowledge】") + len("【Assistant Knowledge】")
+
+                assistant_knowledge_start = result_text.find(
+                    "【Assistant Knowledge】"
+                ) + len("【Assistant Knowledge】")
                 assistant_knowledge = result_text[assistant_knowledge_start:].strip()
             else:
                 private_data = result_text[private_data_start:].strip()
         elif "【Assistant Knowledge】" in result_text:
-             assistant_knowledge_start = result_text.find("【Assistant Knowledge】") + len("【Assistant Knowledge】")
-             assistant_knowledge = result_text[assistant_knowledge_start:].strip()
+            assistant_knowledge_start = result_text.find(
+                "【Assistant Knowledge】"
+            ) + len("【Assistant Knowledge】")
+            assistant_knowledge = result_text[assistant_knowledge_start:].strip()
 
     except Exception as e:
         print(f"Error parsing knowledge extraction: {e}. Raw result: {result_text}")
 
     return {
-        "private": private_data if private_data else "None", 
-        "assistant_knowledge": assistant_knowledge if assistant_knowledge else "None"
+        "private": private_data if private_data else "None",
+        "assistant_knowledge": assistant_knowledge if assistant_knowledge else "None",
     }
 
 
 # Keep the old function for backward compatibility, but mark as deprecated
-def gpt_personality_analysis(dialogs, client: OpenAIClient, model="gpt-4o-mini", known_user_traits="None"):
+def gpt_personality_analysis(
+    dialogs, client: OpenAIClient, model="gpt-4o-mini", known_user_traits="None"
+):
     """
     DEPRECATED: Use gpt_user_profile_analysis and gpt_knowledge_extraction instead.
     This function is kept for backward compatibility only.
@@ -374,58 +449,79 @@ def gpt_personality_analysis(dialogs, client: OpenAIClient, model="gpt-4o-mini",
     # Call the new functions
     profile = gpt_user_profile_analysis(dialogs, client, model, known_user_traits)
     knowledge_data = gpt_knowledge_extraction(dialogs, client, model)
-    
+
     return {
         "profile": profile,
         "private": knowledge_data["private"],
-        "assistant_knowledge": knowledge_data["assistant_knowledge"]
+        "assistant_knowledge": knowledge_data["assistant_knowledge"],
     }
 
 
-def gpt_update_profile(old_profile, new_analysis, client: OpenAIClient, model="gpt-4o-mini"):
+def gpt_update_profile(
+    old_profile, new_analysis, client: OpenAIClient, model="gpt-4o-mini"
+):
     messages = [
         {"role": "system", "content": prompts.UPDATE_PROFILE_SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.UPDATE_PROFILE_USER_PROMPT.format(old_profile=old_profile, new_analysis=new_analysis)}
+        {
+            "role": "user",
+            "content": prompts.UPDATE_PROFILE_USER_PROMPT.format(
+                old_profile=old_profile, new_analysis=new_analysis
+            ),
+        },
     ]
     print("Calling LLM to update user profile...")
     return client.chat_completion(model=model, messages=messages)
 
+
 def gpt_extract_theme(answer_text, client: OpenAIClient, model="gpt-4o-mini"):
     messages = [
         {"role": "system", "content": prompts.EXTRACT_THEME_SYSTEM_PROMPT},
-        {"role": "user", "content": prompts.EXTRACT_THEME_USER_PROMPT.format(answer_text=answer_text)}
+        {
+            "role": "user",
+            "content": prompts.EXTRACT_THEME_USER_PROMPT.format(
+                answer_text=answer_text
+            ),
+        },
     ]
     print("Calling LLM to extract theme...")
     return client.chat_completion(model=model, messages=messages)
 
 
-
 # ---- Functions from dynamic_update.py (to be used by Updater class) ----
-def check_conversation_continuity(previous_page, current_page, client: OpenAIClient, model="gpt-4o-mini"):
+def check_conversation_continuity(
+    previous_page, current_page, client: OpenAIClient, model="gpt-4o-mini"
+):
     prev_user = previous_page.get("user_input", "") if previous_page else ""
     prev_agent = previous_page.get("agent_response", "") if previous_page else ""
-    
+
     user_prompt = prompts.CONTINUITY_CHECK_USER_PROMPT.format(
         prev_user=prev_user,
         prev_agent=prev_agent,
         curr_user=current_page.get("user_input", ""),
-        curr_agent=current_page.get("agent_response", "")
+        curr_agent=current_page.get("agent_response", ""),
     )
     messages = [
         {"role": "system", "content": prompts.CONTINUITY_CHECK_SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt}
+        {"role": "user", "content": user_prompt},
     ]
-    response = client.chat_completion(model=model, messages=messages, temperature=0.0, max_tokens=10)
+    response = client.chat_completion(
+        model=model, messages=messages, temperature=0.0, max_tokens=10
+    )
     return response.strip().lower() == "true"
 
-def generate_page_meta_info(last_page_meta, current_page, client: OpenAIClient, model="gpt-4o-mini"):
+
+def generate_page_meta_info(
+    last_page_meta, current_page, client: OpenAIClient, model="gpt-4o-mini"
+):
     current_conversation = f"User: {current_page.get('user_input', '')}\nAssistant: {current_page.get('agent_response', '')}"
     user_prompt = prompts.META_INFO_USER_PROMPT.format(
         last_meta=last_page_meta if last_page_meta else "None",
-        new_dialogue=current_conversation
+        new_dialogue=current_conversation,
     )
     messages = [
         {"role": "system", "content": prompts.META_INFO_SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt}
+        {"role": "user", "content": user_prompt},
     ]
-    return client.chat_completion(model=model, messages=messages, temperature=0.3, max_tokens=100).strip() 
+    return client.chat_completion(
+        model=model, messages=messages, temperature=0.3, max_tokens=100
+    ).strip()

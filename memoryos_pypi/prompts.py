@@ -65,15 +65,23 @@ Few-shot 示例：
 """
 
 # Prompt for summarizing dialogs (from utils.py, gpt_summarize)
-SUMMARIZE_DIALOGS_SYSTEM_PROMPT = "你是对话主题总结专家。请生成极其简洁且精准的主题摘要，尽量简短但保留核心要点。"
-SUMMARIZE_DIALOGS_USER_PROMPT = "请基于以下对话生成简要主题总结，最多 2-3 句短句：\n{dialog_text}\n简要总结："
+SUMMARIZE_DIALOGS_SYSTEM_PROMPT = (
+    "你是对话主题总结专家。请生成极其简洁且精准的主题摘要，尽量简短但保留核心要点。"
+)
+SUMMARIZE_DIALOGS_USER_PROMPT = (
+    "请基于以下对话生成简要主题总结，最多 2-3 句短句：\n{dialog_text}\n简要总结："
+)
 
 # Prompt for multi-summary generation (from utils.py, gpt_generate_multi_summary)
-MULTI_SUMMARY_SYSTEM_PROMPT = "你是对话主题分析专家。请生成简明的小主题总结，主题不超过两个，尽量简短。"
-MULTI_SUMMARY_USER_PROMPT = ("请分析以下对话，并在需要时生成不超过两个小主题的极简总结。\n"
-                           "每个总结尽量短，仅包含主题词与简述。输出为 JSON 数组：\n"
-                           "[\n  {{\"theme\": \"主题\", \"keywords\": [\"关键词1\", \"关键词2\"], \"content\": \"简述\"}}\n]\n"
-                           "\n对话内容：\n{text}")
+MULTI_SUMMARY_SYSTEM_PROMPT = (
+    "你是对话主题分析专家。请生成简明的小主题总结，主题不超过两个，尽量简短。"
+)
+MULTI_SUMMARY_USER_PROMPT = (
+    "请分析以下对话，并在需要时生成不超过两个小主题的极简总结。\n"
+    "每个总结尽量短，仅包含主题词与简述。输出为 JSON 数组：\n"
+    '[\n  {{"theme": "主题", "keywords": ["关键词1", "关键词2"], "content": "简述"}}\n]\n'
+    "\n对话内容：\n{text}"
+)
 
 # Prompt for personality analysis (NEW TEMPLATE)
 PERSONALITY_ANALYSIS_SYSTEM_PROMPT = """你是一名专业的用户偏好分析助手。请基于给定维度，从提供的对话中分析用户的性格与偏好。
@@ -212,12 +220,11 @@ Latest User-AI Conversation:
 
 # Prompt for updating user profile (from utils.py, gpt_update_profile)
 UPDATE_PROFILE_SYSTEM_PROMPT = "你是用户画像的合并与更新专家。请将新的分析信息整合进旧画像，保持一致性并提升整体理解，避免冗余。新的分析来自特定维度，请有意义地纳入。"
-UPDATE_PROFILE_USER_PROMPT = "请基于新的分析更新以下用户画像。若旧画像为空或为 \"None\"，则基于新分析创建一份新的。\n\n旧用户画像：\n{old_profile}\n\n新分析数据：\n{new_analysis}\n\n更新后的用户画像："
+UPDATE_PROFILE_USER_PROMPT = '请基于新的分析更新以下用户画像。若旧画像为空或为 "None"，则基于新分析创建一份新的。\n\n旧用户画像：\n{old_profile}\n\n新分析数据：\n{new_analysis}\n\n更新后的用户画像：'
 
 # Prompt for extracting theme (from utils.py, gpt_extract_theme)
 EXTRACT_THEME_SYSTEM_PROMPT = "你是文本主题提取专家。请给出精炼的主题。"
 EXTRACT_THEME_USER_PROMPT = "请从以下文本中提取主要主题：\n{answer_text}\n\n主题："
-
 
 
 # Prompt for conversation continuity check (from dynamic_update.py, _is_conversation_continuing)
@@ -248,11 +255,11 @@ Assistant: {curr_agent}
 是否为同一主体的连续对话？"""
 
 # Prompt for generating meta info (from dynamic_update.py, _generate_meta_info)
-META_INFO_SYSTEM_PROMPT = ("""你是对话元摘要的更新器。你的任务：
+META_INFO_SYSTEM_PROMPT = """你是对话元摘要的更新器。你的任务：
 1. 保留上一版元摘要中的相关上下文；
 2. 融入当前对话中的新信息；
-3. 仅输出更新后的摘要（不需要解释）。""" )
-META_INFO_USER_PROMPT = ("""请在保持连续性的前提下，用当前对话更新元摘要。
+3. 仅输出更新后的摘要（不需要解释）。"""
+META_INFO_USER_PROMPT = """请在保持连续性的前提下，用当前对话更新元摘要。
         
     指南：
     1. 以上一版元摘要为起点（如存在）；
@@ -264,4 +271,4 @@ META_INFO_USER_PROMPT = ("""请在保持连续性的前提下，用当前对话�
     新的对话：
     {new_dialogue}
     
-    更新后的元摘要：""")
+    更新后的元摘要："""

@@ -1,9 +1,11 @@
 import json
 from collections import deque
+
 try:
-    from .utils import get_timestamp, ensure_directory_exists
+    from .utils import ensure_directory_exists, get_timestamp
 except ImportError:
-    from utils import get_timestamp, ensure_directory_exists
+    from utils import ensure_directory_exists, get_timestamp
+
 
 class ShortTermMemory:
     def __init__(self, file_path, max_capacity=10):
@@ -15,18 +17,20 @@ class ShortTermMemory:
 
     def add_qa_pair(self, qa_pair):
         # Ensure timestamp exists, add if not
-        if 'timestamp' not in qa_pair or not qa_pair['timestamp']:
+        if "timestamp" not in qa_pair or not qa_pair["timestamp"]:
             qa_pair["timestamp"] = get_timestamp()
-        
+
         self.memory.append(qa_pair)
-        print(f"ShortTermMemory: Added QA. User: {qa_pair.get('user_input','')[:30]}...")
+        print(
+            f"ShortTermMemory: Added QA. User: {qa_pair.get('user_input', '')[:30]}..."
+        )
         self.save()
 
     def get_all(self):
         return list(self.memory)
 
     def is_full(self):
-        return len(self.memory) >= self.max_capacity # Use >= to be safe
+        return len(self.memory) >= self.max_capacity  # Use >= to be safe
 
     def pop_oldest(self):
         if self.memory:
@@ -55,10 +59,16 @@ class ShortTermMemory:
             print(f"ShortTermMemory: Loaded from {self.file_path}.")
         except FileNotFoundError:
             self.memory = deque(maxlen=self.max_capacity)
-            print(f"ShortTermMemory: No history file found at {self.file_path}. Initializing new memory.")
+            print(
+                f"ShortTermMemory: No history file found at {self.file_path}. Initializing new memory."
+            )
         except json.JSONDecodeError:
             self.memory = deque(maxlen=self.max_capacity)
-            print(f"ShortTermMemory: Error decoding JSON from {self.file_path}. Initializing new memory.")
+            print(
+                f"ShortTermMemory: Error decoding JSON from {self.file_path}. Initializing new memory."
+            )
         except Exception as e:
             self.memory = deque(maxlen=self.max_capacity)
-            print(f"ShortTermMemory: An unexpected error occurred during load from {self.file_path}: {e}. Initializing new memory.") 
+            print(
+                f"ShortTermMemory: An unexpected error occurred during load from {self.file_path}: {e}. Initializing new memory."
+            )
