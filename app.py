@@ -2176,21 +2176,41 @@ def generate_with_mcp_tools(
             yield f"data: {json.dumps({'error': '无法获取事件循环'}, ensure_ascii=False)}\n\n"
             return
 
-        # 创建异步生成器
-        async def async_generator():
-            async for event in mcp_client.process_query_streaming(prompt):
-                yield event
+        # 使用队列在异步和同步代码之间传递事件
+        import queue
+        event_queue = queue.Queue()
+        exception_holder = []
 
-        # 包装异步生成器
-        async_gen = async_generator()
+        # 创建异步任务，将事件放入队列
+        async def async_producer():
+            try:
+                async for event in mcp_client.process_query_streaming(prompt):
+                    event_queue.put(event)
+                event_queue.put(None)  # 结束标记
+            except Exception as e:
+                exception_holder.append(e)
+                event_queue.put(None)
+
+        # 在事件循环中启动异步任务
+        import asyncio
+        asyncio.run_coroutine_threadsafe(async_producer(), loop)
+
         full_response = ""
         stream_interrupted = False
 
         try:
             while True:
                 try:
-                    # 在事件循环中运行异步操作
-                    event = loop.run_until_complete(async_gen.__anext__())
+                    # 从队列中获取事件（带超时避免永久阻塞）
+                    event = event_queue.get(timeout=300)  # 5分钟超时
+
+                    # 检查是否有异常
+                    if exception_holder:
+                        raise exception_holder[0]
+
+                    # 检查是否结束
+                    if event is None:
+                        break
 
                     if event["type"] == "content":
                         # LLM 生成的文本内容
@@ -2219,8 +2239,10 @@ def generate_with_mcp_tools(
                         # 处理完成
                         break
 
-                except StopAsyncIteration:
-                    # 异步生成器结束
+                except queue.Empty:
+                    # 队列超时，可能是处理时间过长
+                    logger.warning("从事件队列获取事件超时")
+                    yield f"data: {json.dumps({'error': '处理超时'}, ensure_ascii=False)}\n\n"
                     break
 
                 except GeneratorExit:
