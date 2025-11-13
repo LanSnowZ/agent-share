@@ -26,7 +26,7 @@ def simple_demo():
             mid_term_heat_threshold=1000,
             retrieval_queue_capacity=10,
             long_term_knowledge_capacity=100,
-            mid_term_similarity_threshold=0.6,
+            mid_term_similarity_threshold=0.7,
             embedding_model_name="",
         )
         print("MemoryOS initialized successfully!\n")

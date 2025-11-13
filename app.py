@@ -48,11 +48,10 @@ os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 
 app = Flask(__name__)
-# 仅允许可信前端来源并支持携带凭据（用于设置HttpOnly Cookie）
+# 允许所有来源的请求并支持携带凭据（用于设置HttpOnly Cookie）
 CORS(
     app,
     supports_credentials=True,
-    resources={r"/*": {"origins": ["https://baijia.online"]}},
 )
 
 # JWT 配置
@@ -254,6 +253,21 @@ LEVEL_MAP_EN_TO_CN = {
     "Detailed": "详细",
     "Concise": "简洁",
 }
+
+
+def get_total_user_count() -> int:
+    """统计 user.json 中的用户数量"""
+    try:
+        if not os.path.exists(cache_path_settings.USER_FILE_PATH):
+            return 0
+        with open(cache_path_settings.USER_FILE_PATH, "r", encoding="utf-8") as f:
+            user_data = json.load(f)
+        users = user_data.get("users", [])
+        if isinstance(users, list):
+            return len(users)
+    except Exception as e:
+        print(f"统计用户数量失败: {e}")
+    return 0
 
 
 def extract_profile_dimensions_from_text(profile_text: str) -> dict:
@@ -1435,7 +1449,8 @@ def get_rag_answer_prompt_with_context(
 
 重要提示：根据用户的画像、专业水平和职业背景调整你的回答。
 你的回复应该与这个特定用户相关且合适。
-
+如果当前问题与记忆完全无关 请直接回答!不要提及记忆和个性化的内容！
+如果你有工具可以使用, 请使用工具来进行搜索和回答!
 重要提示：你可以查看并参考上面提供的对话历史。使用它来提供与上下文相关的回复。
 
 你的回答:
@@ -1465,7 +1480,7 @@ def get_fusion_rag_prompt_with_context(
     return f"""你是一个有用的AI助手。你的任务是基于两个记忆源提供的上下文来回答用户的问题。
 上下文来自共享知识库和你对过去对话的个人记忆。
 综合这两个来源的信息，提供全面准确的答案。
-如果上下文不相关，忽略它，基于你自己的知识回答。
+如果上下文和用户不相关，忽略它，基于你自己的知识回答。
 {context_section}**用户画像:**
 ---
 {user_profile}
@@ -1486,11 +1501,11 @@ def get_fusion_rag_prompt_with_context(
 {user_query}
 ---
 
-重要提示：根据用户的画像、专业水平和职业背景调整你的回答。
-使用共享知识和个人上下文来提供与这个特定用户相关且合适的回复。
-如果共享记忆和个人记忆之间存在冲突，优先考虑与用户当前问题最相关的信息。
 
 重要提示：你可以查看并参考上面提供的对话历史。使用它来提供与上下文相关的回复。
+如果当前问题与记忆完全无关 请直接回答!不要提及记忆和个性化的内容！
+回答的内容不要太个性化了!不要总是扯到职业特征 如果与上下文没有联系忽视上下文的对话风格
+如果你有工具可以使用, 请使用工具来进行搜索和回答!
 
 你的回答:
 """
@@ -1569,9 +1584,23 @@ def generate_response_with_memory(
                     )
                 )
                 if long_term_profile and long_term_profile != "None":
-                    enhanced_profile_text = f"{user_profile.profile_text}\n\n**Long-term User Profile Insights (from MemoryOS):**\n{long_term_profile}"
                     # 同步中文键值画像维度至 users.json
                     sync_user_dimensions_to_store(user_id, long_term_profile)
+                    
+                    # 从长期画像中提取结构化维度，生成简洁的中文维度文本
+                    grouped_dims = extract_profile_dimensions_from_text(long_term_profile)
+                    # 格式化为简洁的文本
+                    dimension_lines = []
+                    for group_name, dims in grouped_dims.items():
+                        if dims:  # 只显示有内容的分组
+                            dimension_lines.append(f"【{group_name}】")
+                            for dim_name, dim_value in dims.items():
+                                dimension_lines.append(f"  • {dim_name}: {dim_value}")
+                    
+                    if dimension_lines:
+                        enhanced_profile_text = f"{user_profile.profile_text}\n\n**用户画像维度:**\n" + "\n".join(dimension_lines)
+                    else:
+                        enhanced_profile_text = user_profile.profile_text
 
                 # 添加短期记忆到检索结果中
                 context_result = memoryos_result.copy()
@@ -1617,7 +1646,7 @@ def generate_response_with_memory(
                 print(f"  - 对话ID: {conversation_id}")
 
                 retrieval_result = retrieve_pipeline.retrieve(
-                    user=enhanced_user_profile, task=message, peers=peers, top_k=3
+                    user=enhanced_user_profile, task=message, peers=peers, top_k=5
                 )
 
                 print(f"  - 检索结果: {retrieval_result}")
@@ -1678,7 +1707,7 @@ def generate_response_with_memory(
                 enhanced_profile_text,
                 conversation_context,
             )
-            print("🧠 Using Fusion RAG prompt (Personal + Shared Memory)")
+            print("🧠 使用融合RAG提示词 (个人记忆 + 共享记忆)")
         elif personal_memory_enabled and personal_memory_context:
             # 使用个人记忆RAG提示词 (仅个人记忆)
             prompt = get_fusion_rag_prompt_with_context(
@@ -1733,7 +1762,8 @@ def generate_response_with_memory(
 @app.route("/")
 def index():
     """主页面"""
-    return render_template("index.html")
+    user_count = get_total_user_count()
+    return render_template("index.html", user_count=user_count)
 
 
 @app.route("/dashboard")
@@ -1754,15 +1784,18 @@ def share_view(share_token):
     """分享链接视图 - 格式: /{chat_id}{timestamp_numeric}
     返回主页，通过 URL 传递分享参数，由前端 JavaScript 处理
     """
+    user_count = get_total_user_count()
     # 验证 share_token 格式
 
     match = re.match(r"(chat_\d+)(\d{14})", share_token)
     if not match:
         # 如果不是分享链接格式，返回主页（可能是其他路由）
-        return render_template("index.html")
+        return render_template("index.html", user_count=user_count)
 
     # 是分享链接，返回主页并传递 share_token
-    return render_template("index.html", share_token=share_token)
+    return render_template(
+        "index.html", share_token=share_token, user_count=user_count
+    )
 
 
 @app.route("/api/get_shared_message", methods=["GET"])
@@ -2514,9 +2547,23 @@ def chat_direct():
                         )
                     )
                     if long_term_profile and long_term_profile != "None":
-                        enhanced_profile_text = f"{user_profile.profile_text}\n\n**Long-term User Profile Insights:**\n{long_term_profile}"
                         # 同步中文键值画像维度至 users.json
                         sync_user_dimensions_to_store(username, long_term_profile)
+                        
+                        # 从长期画像中提取结构化维度，生成简洁的中文维度文本
+                        grouped_dims = extract_profile_dimensions_from_text(long_term_profile)
+                        # 格式化为简洁的文本
+                        dimension_lines = []
+                        for group_name, dims in grouped_dims.items():
+                            if dims:  # 只显示有内容的分组
+                                dimension_lines.append(f"【{group_name}】")
+                                for dim_name, dim_value in dims.items():
+                                    dimension_lines.append(f"  • {dim_name}: {dim_value}")
+                        
+                        if dimension_lines:
+                            enhanced_profile_text = f"{user_profile.profile_text}\n\n**用户画像维度:**\n" + "\n".join(dimension_lines)
+                        else:
+                            enhanced_profile_text = user_profile.profile_text
 
                     context_result = memoryos_result.copy()
                     short_term_history = memoryos_instance.short_term_memory.get_all()
@@ -2544,7 +2591,7 @@ def chat_direct():
                     print(f"  - 对话ID: {conversation_id}")
 
                     retrieval_result = retrieve_pipeline.retrieve(
-                        user=enhanced_user_profile, task=message, peers=peers, top_k=3
+                        user=enhanced_user_profile, task=message, peers=peers, top_k=10
                     )
 
                     print(f"  - [流式聊天] 检索结果: {retrieval_result}")
@@ -3556,7 +3603,7 @@ def get_used_shared_memories():
         if os.path.exists(cache_path_settings.MEMORY_FILE_PATH):
             try:
                 with open(
-                    cache_path_settings.MEMORY_FILE_PATH, "r", encoding="utf-8"
+                    'sharememory_user/'+cache_path_settings.MEMORY_FILE_PATH, "r", encoding="utf-8"
                 ) as f:
                     memory_data = json.load(f)
                     memories_list = memory_data.get("memories", [])

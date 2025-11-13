@@ -169,13 +169,13 @@ class RetrievePipeline:
         return [memories[i] for i in top_k_indices]
 
     def retrieve(
-        self, user: UserProfile, task: str, peers: List[Peer], top_k: int = 3
+        self, user: UserProfile, task: str, peers: List[Peer], top_k: int = 5
     ) -> Dict[str, any]:
         memories = self.store.list_memories()
         Q_i = self._encode_query(user.profile_text, task)
 
         # Step 1: Pre-filter to get top 10 candidates based on focus_query
-        pre_filter_k = 10
+        pre_filter_k = 20
         candidate_memories = self._pre_filter_memories_by_focus(
             memories, Q_i, pre_filter_k
         )
@@ -200,6 +200,12 @@ class RetrievePipeline:
 
         # LLM-based usefulness filtering (batch): collect all focus_queries, call LLM once, filter indices
         topk_focus_queries = [candidate_memories[idx].focus_query for idx in indices]
+        # Log the memory IDs that are being sent to LLM usefulness judgement
+        try:
+            ids_for_llm = [candidate_memories[idx].id for idx in indices]
+            print("\n🔎 [retrieve] 送入 LLM 有用性判断的记忆ID: " + ", ".join(ids_for_llm))
+        except Exception:
+            pass
         useful_flags = self.llm.are_focus_queries_useful(task, topk_focus_queries)
 
         filtered_indices: List[int] = []

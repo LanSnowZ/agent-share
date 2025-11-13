@@ -23,7 +23,7 @@ class Config:
         "SMU_LLM_PROVIDER", "openai"
     )  # "openai" or "none"
     openai_api_key: Optional[str] = os.environ.get(
-        "OPENAI_API_KEY", "sk-YBJCZ71v8Eb58e95123FT3BLbkFJa0fA99fb651B4f5792D4"
+        "OPENAI_API_KEY", "sk-UNPI9WFKD0096181Cc77T3BlBkFJ59170fbdfC5c4dE98536"
     )
     openai_api_base: Optional[str] = os.environ.get(
         "OPENAI_API_BASE", "https://cn2us02.opapi.win/v1"

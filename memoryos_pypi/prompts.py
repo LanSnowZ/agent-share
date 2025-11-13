@@ -24,6 +24,7 @@ GENERATE_SYSTEM_RESPONSE_USER_PROMPT = (
     "现在，请以 {relationship} 的身份继续和用户对话。\n"
     "用户刚刚说：{query}\n"
     "请用不超过 30 个字进行回应（语言不限，但需准确简洁）。\n"
+    "注意最后给出的回答，如果与相关记忆无关就不要提及相关记忆，直接给出回答。"
     "回答时务必核对引用信息的时间是否与问题时间范围一致。"
 )
 
@@ -103,8 +104,8 @@ Here are the 95 dimensions and their explanations:
 Name: 用户的姓名（如对话中提及）。
 Gender: 用户的性别（如对话中提及）。
 Age: 用户的年龄（如对话中提及）。
-Occupation: 用户的职业（如对话中提及）。
-Work Details: 用户的工作详情、所在行业或具体职位（如对话中提及）。
+Occupation: 用户的职业（如对话中提及，不能有详细描述）。
+Work Details: 用户的工作详情、所在行业或具体职位（如对话中提及 尽量简洁，只总结确定重要的信息，不能超过15个字）。
 
 [Psychological Model (Basic Needs & Personality)]
 Extraversion: 偏好社交活动。

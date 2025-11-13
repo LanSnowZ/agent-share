@@ -121,6 +121,9 @@
     .chat-history-item-time {
       font-size: 12px;
       color: #6b7280;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .chat-history-item-actions {
@@ -137,15 +140,12 @@
     }
 
     .chat-history-flag {
-      position: absolute;
-      right: 40px;
-      top: 50%;
-      transform: translateY(-50%);
       color: #f59e0b;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: help;
+      margin-left: 0;
     }
 
     .chat-history-flag svg {
@@ -899,15 +899,18 @@
       z-index: 10;
     }
 
-    .chat-input-container.centered::before {
-      content: "百家AI经验搜索: 集众人之智";
-      display: block;
+    .chat-input-banner {
+      display: none;
       text-align: center;
       font-size: 24px;
       font-weight: 700;
       color: #165dff;
       margin-bottom: 16px;
       letter-spacing: 2px;
+    }
+
+    .chat-input-container.centered .chat-input-banner {
+      display: block;
     }
 
     .chat-input-container.centered .chat-input {
@@ -1841,6 +1844,7 @@ var _hmt = _hmt || [];
       </div>
 
       <div class="chat-input-container">
+        <div class="chat-input-banner" id="chatInputBanner">百家经验搜索：{{ (user_count or 0) }} 人助你找到答案</div>
         <div class="chat-input-wrapper">
           <div style="position: relative;">
             <textarea 
@@ -3012,8 +3016,7 @@ var _hmt = _hmt || [];
 
               chatItem.innerHTML = `
                 <div class="chat-history-item-title">${chat.title || '新对话'}</div>
-                <div class="chat-history-item-time">${formatTime(chat.updated_at)}</div>
-                ${starHtml}
+                <div class="chat-history-item-time">${formatTime(chat.updated_at)}${starHtml}</div>
                 <div class="chat-history-item-actions">
                   <button class="delete-btn" onclick="deleteChat('${chat.id}')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -4123,8 +4126,7 @@ var _hmt = _hmt || [];
             
             chatItem.innerHTML = `
               <div class="chat-history-item-title">${chat.title || '新对话'}</div>
-              <div class="chat-history-item-time">${formatTime(chat.updated_at)}</div>
-              ${starHtml}
+              <div class="chat-history-item-time">${formatTime(chat.updated_at)}${starHtml}</div>
               <div class="chat-history-item-actions">
                 <button class="delete-btn" onclick="deleteChat('${chat.id}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -4244,8 +4246,7 @@ var _hmt = _hmt || [];
             
             chatItem.innerHTML = `
               <div class="chat-history-item-title">${chat.title || '新对话'}</div>
-              <div class="chat-history-item-time">${formatTime(chat.updated_at)}</div>
-              ${starHtml}
+              <div class="chat-history-item-time">${formatTime(chat.updated_at)}${starHtml}</div>
               <div class="chat-history-item-actions">
                 <button class="delete-btn" onclick="deleteChat('${chat.id}')">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
