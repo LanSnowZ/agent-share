@@ -1322,12 +1322,13 @@ def get_baseline_answer_prompt(user_query: str, user_profile: str) -> str:
 
 
 def get_baseline_answer_prompt_no_profile(
-    user_query: str, conversation_context: str = ""
+    user_query: str, conversation_context: str = "", mcp_enabled: bool = False,
 ) -> str:
     """
     创建不使用任何记忆和个人信息的基线提示词
     只包含对话上下文（如果有的话）
     """
+    prefix = "请你使用搜索工具和网页访问工具帮我回答: " if mcp_enabled else ""
     context_section = ""
     if conversation_context:
         context_section = f"""
@@ -1341,7 +1342,7 @@ def get_baseline_answer_prompt_no_profile(
     return f"""
 {context_section}**用户问题:**
 ---
-{user_query}
+{prefix}{user_query}
 ---
 你的回答:
 """
@@ -1414,10 +1415,12 @@ def get_rag_answer_prompt_with_context(
     retrieved_context: str,
     user_profile: str,
     conversation_context: str = "",
+    mcp_enabled: bool = False,
 ) -> str:
     """
     创建包含对话上下文的RAG提示词
     """
+    mcp_prefix = "请你使用搜索工具和网页访问工具帮我回答: " if mcp_enabled else ""
     context_section = ""
     if conversation_context:
         context_section = f"""
@@ -1444,7 +1447,7 @@ def get_rag_answer_prompt_with_context(
 
 **用户问题:**
 ---
-{user_query}
+{mcp_prefix}{user_query}
 ---
 
 重要提示：根据用户的画像、专业水平和职业背景调整你的回答。
@@ -1463,6 +1466,7 @@ def get_fusion_rag_prompt_with_context(
     personal_memory_context: str,
     user_profile: str,
     conversation_context: str = "",
+    mcp_enabled: bool = False,
 ) -> str:
     """
     创建包含对话上下文的融合RAG提示词
@@ -1476,7 +1480,8 @@ def get_fusion_rag_prompt_with_context(
 ---
 
 """
-
+    mcp_prefix = "请你使用搜索工具和网页访问工具帮我回答: " if mcp_enabled else ""
+        
     return f"""你是一个有用的AI助手。你的任务是基于两个记忆源提供的上下文来回答用户的问题。
 上下文来自共享知识库和你对过去对话的个人记忆。
 综合这两个来源的信息，提供全面准确的答案。
@@ -1498,7 +1503,7 @@ def get_fusion_rag_prompt_with_context(
 
 **用户问题:**
 ---
-{user_query}
+{mcp_prefix}{user_query}
 ---
 
 
@@ -1509,254 +1514,6 @@ def get_fusion_rag_prompt_with_context(
 
 你的回答:
 """
-
-
-def generate_response_with_memory(
-    user_id: str,
-    message: str,
-    model: str,
-    shared_memory_enabled: bool = False,
-    personal_memory_enabled: bool = True,
-    project_name: str = "default_project",
-    conversation_id: str = None,
-) -> str:
-    """结合个人记忆和共享记忆生成回复，与evaluate_end_to_end.py逻辑保持一致"""
-    try:
-        # 获取用户配置
-        user_config = get_user_config(user_id, project_name)
-        if not user_config.get("openai_api_key"):
-            return "错误：请先配置OpenAI API Key"
-
-        # 确保用户存在
-        user_profile = store.get_user(user_id)
-        if not user_profile:
-            # 创建默认用户档案
-            user_profile = UserProfile(
-                user_id=user_id,
-                profile_text=user_config.get("user_profile", f"用户 {user_id}"),
-            )
-            store.add_user(user_profile)
-
-        # 构建对话历史上下文（无论是否开启记忆都要提供）
-        conversation_context = ""
-        if conversation_id:
-            conversation_data = load_conversation_history(user_id, conversation_id)
-            if conversation_data and conversation_data.get("messages"):
-                # 获取历史消息（排除当前消息）
-                history_messages = (
-                    conversation_data["messages"][:-2]
-                    if len(conversation_data["messages"]) >= 2
-                    else []
-                )
-                if history_messages:
-                    conversation_context = "\n".join(
-                        [
-                            f"{'用户' if msg['type'] == 'user' else '助手'}: {msg['content']}"
-                            for msg in history_messages[-10:]  # 只取最近10条历史消息
-                        ]
-                    )
-                    print(f"📚 使用最近 {len(history_messages)} 条对话历史作为上下文")
-                else:
-                    print("ℹ️ 新对话的第一轮交互")
-
-        # 获取个人记忆和增强用户档案
-        personal_memory_context = ""
-        enhanced_profile_text = user_profile.profile_text
-
-        if personal_memory_enabled and user_id in memoryos_instances:
-            try:
-                memoryos_instance = memoryos_instances[user_id]
-                # 使用MemoryOS标准检索方法获取所有记忆层 (降低阈值以提高检索成功率)
-                memoryos_result = memoryos_instance.retriever.retrieve_context(
-                    user_query=message,
-                    user_id=user_id,
-                    segment_similarity_threshold=0.1,  # 降低中期记忆相似度阈值
-                    page_similarity_threshold=0.1,  # 降低页面相似度阈值
-                    knowledge_threshold=0.1,  # 降低知识相似度阈值
-                    top_k_sessions=3,  # 减少会话数量
-                    top_k_knowledge=2,  # 增加知识数量
-                )
-
-                # 获取长期用户档案
-                long_term_profile = (
-                    memoryos_instance.user_long_term_memory.get_raw_user_profile(
-                        user_id
-                    )
-                )
-                if long_term_profile and long_term_profile != "None":
-                    # 同步中文键值画像维度至 users.json
-                    sync_user_dimensions_to_store(user_id, long_term_profile)
-                    
-                    # 从长期画像中提取结构化维度，生成简洁的中文维度文本
-                    grouped_dims = extract_profile_dimensions_from_text(long_term_profile)
-                    # 格式化为简洁的文本
-                    dimension_lines = []
-                    for group_name, dims in grouped_dims.items():
-                        if dims:  # 只显示有内容的分组
-                            dimension_lines.append(f"【{group_name}】")
-                            for dim_name, dim_value in dims.items():
-                                dimension_lines.append(f"  • {dim_name}: {dim_value}")
-                    
-                    if dimension_lines:
-                        enhanced_profile_text = f"{user_profile.profile_text}\n\n**用户画像维度:**\n" + "\n".join(dimension_lines)
-                    else:
-                        enhanced_profile_text = user_profile.profile_text
-
-                # 添加短期记忆到检索结果中
-                context_result = memoryos_result.copy()
-                # 获取短期记忆
-                short_term_history = memoryos_instance.short_term_memory.get_all()
-                if short_term_history:
-                    context_result["short_term_queue"] = short_term_history
-
-                # 格式化个人记忆上下文（排除user_knowledge以避免与档案重复）
-                context_result.pop("user_knowledge", None)
-                personal_memory_context = format_memoryos_retrieval_result(
-                    context_result
-                )
-
-                print(
-                    f"🧠 Retrieved and formatted personal memory for {user_id}: {len(personal_memory_context)} chars"
-                )
-
-            except Exception as e:
-                print(
-                    f"⚠️ Failed to retrieve or process personal memory for {user_id}: {e}"
-                )
-                personal_memory_context = ""
-        elif not personal_memory_enabled:
-            print(f"🚫 Personal memory disabled for {user_id}, using baseline mode")
-
-        # 获取共享记忆
-        shared_memory_context = ""
-        if shared_memory_enabled:
-            try:
-                # 使用缓存的peers (与原始项目一致)
-                peers = retrieve_pipeline.get_cached_peers()
-
-                # 创建增强的用户档案对象用于检索管道
-                enhanced_user_profile = UserProfile(
-                    user_id=user_id, profile_text=enhanced_profile_text
-                )
-
-                # 检索共享记忆
-                print("\n🔍 开始检索共享记忆...")
-                print(f"  - 用户: {user_id}")
-                print(f"  - 消息: {message[:50]}...")
-                print(f"  - 对话ID: {conversation_id}")
-
-                retrieval_result = retrieve_pipeline.retrieve(
-                    user=enhanced_user_profile, task=message, peers=peers, top_k=5
-                )
-
-                print(f"  - 检索结果: {retrieval_result}")
-                print(f"  - 检索到的项目数量: {len(retrieval_result.get('items', []))}")
-
-                # 打印最终选中的共享记忆ID（在构建提示词前）
-                try:
-                    selected_ids = [
-                        it.get("memory", {}).get("id", "NO_ID_FOUND")
-                        for it in retrieval_result.get("items", [])
-                        if isinstance(it, dict)
-                    ]
-                    print(f"  - 选中的记忆ID: {selected_ids}")
-
-                    if selected_ids:
-                        print(f"✅ 共享记忆已选中ID: {', '.join(selected_ids)}")
-                        # 将选中的记忆ID保存到对话中，用于后续显示
-                        if conversation_id:
-                            print(f"  - 开始保存记忆ID到对话: {conversation_id}")
-                            save_used_memories_to_conversation(
-                                conversation_id, selected_ids, user_id
-                            )
-                        else:
-                            print("  - 警告: conversation_id为空，无法保存记忆ID")
-                    else:
-                        print("ℹ️ 共享记忆未选中任何条目（为空或被QC过滤）")
-                except Exception as log_err:
-                    print(f"⚠️ 打印共享记忆ID失败: {log_err}")
-                    traceback.print_exc()
-
-                if retrieval_result["items"]:
-                    shared_memory_context = retrieve_pipeline.build_prompt_blocks(
-                        retrieval_result["items"], conversation_id, user_id
-                    )
-
-                print(
-                    f"🔗 Retrieved shared memory context: {len(shared_memory_context)} chars"
-                )
-
-            except Exception as e:
-                print(f"检索共享记忆失败: {e}")
-
-        else:
-            print("ℹ️ 共享记忆未开启（shared_memory_enabled=False）")
-
-        # 根据记忆状态选择提示词 (与原始项目逻辑一致)
-        if (
-            personal_memory_enabled
-            and shared_memory_enabled
-            and shared_memory_context
-            and personal_memory_context
-        ):
-            # 使用融合RAG提示词 (个人记忆 + 共享记忆)
-            prompt = get_fusion_rag_prompt_with_context(
-                message,
-                shared_memory_context,
-                personal_memory_context,
-                enhanced_profile_text,
-                conversation_context,
-            )
-            print("🧠 使用融合RAG提示词 (个人记忆 + 共享记忆)")
-        elif personal_memory_enabled and personal_memory_context:
-            # 使用个人记忆RAG提示词 (仅个人记忆)
-            prompt = get_fusion_rag_prompt_with_context(
-                message,
-                "",  # 无共享记忆
-                personal_memory_context,
-                enhanced_profile_text,
-                conversation_context,
-            )
-            print("🧠 Using Personal Memory RAG prompt")
-        elif shared_memory_enabled and shared_memory_context:
-            # 使用共享记忆RAG提示词 (仅共享记忆)
-            prompt = get_rag_answer_prompt_with_context(
-                message,
-                shared_memory_context,
-                enhanced_profile_text,
-                conversation_context,
-            )
-            print("🔗 Using Shared Memory RAG prompt")
-        else:
-            # 使用基线提示词 (无记忆) - 不包含用户档案信息
-            prompt = get_baseline_answer_prompt_no_profile(
-                message, conversation_context
-            )
-            print("📝 Using Baseline prompt (No Memory, No Profile)")
-
-        # 对话上下文已经在相应的提示词函数中处理了，这里不需要额外添加
-
-        # 调用LLM生成回复
-        client = OpenAI(
-            api_key=user_config.get("openai_api_key", config.openai_api_key),
-            base_url=user_config.get("openai_base_url", config.openai_api_base),
-            timeout=120.0,  # 增加超时时间到120秒，处理长上下文
-            max_retries=2,
-        )
-
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=10000,
-        )
-
-        return response.choices[0].message.content or "抱歉，我无法生成回复。"
-
-    except Exception as e:
-        print(f"生成回复失败: {e}")
-        return f"错误：生成回复时出现问题 - {str(e)}"
-
 
 # API路由
 @app.route("/")
@@ -2647,6 +2404,7 @@ def chat_direct():
                     personal_memory_context,
                     enhanced_profile_text,
                     conversation_context,
+                    mcp_enabled=mcp_enabled,
                 )
                 print("使用融合RAG提示词")
             elif personal_memory_enabled and personal_memory_context:
@@ -2656,6 +2414,7 @@ def chat_direct():
                     personal_memory_context,
                     enhanced_profile_text,
                     conversation_context,
+                    mcp_enabled=mcp_enabled,
                 )
                 print("使用个人记忆RAG提示词")
             elif shared_memory_enabled and shared_memory_context:
@@ -2664,11 +2423,12 @@ def chat_direct():
                     shared_memory_context,
                     enhanced_profile_text,
                     conversation_context,
+                    mcp_enabled=mcp_enabled,
                 )
                 print("使用共享记忆RAG提示词")
             else:
                 prompt = get_baseline_answer_prompt_no_profile(
-                    message, conversation_context
+                    message, conversation_context, mcp_enabled=mcp_enabled,
                 )
                 print("使用基线提示词")
 
