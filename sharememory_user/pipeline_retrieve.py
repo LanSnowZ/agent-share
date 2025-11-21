@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
-from tqdm import tqdm
 
 from .config import Config
 from .embedding import Embedder
 from .llm_qc import LLMQC
 from .models import MemoryItem, UserProfile
 from .storage import JsonStore
-from .utils import entropy, js_divergence, l2_normalize, softmax
+from .utils import l2_normalize
 
 
 @dataclass
 class Peer:
+    """Peer class for compatibility, but not used in hybrid retrieval strategy."""
     user_id: str
     profile_text: str
 
@@ -25,30 +25,18 @@ class RetrievePipeline:
         self.cfg = cfg
         self.store = JsonStore(cfg)
         self.embed = Embedder(cfg)
-        self._peer_embedding_cache: Dict[str, Dict[str, np.ndarray]] = {}
-        self._cached_peers: List[Peer] = []
         self.llm = LLMQC(cfg)
 
-    def precompute_peer_embeddings(self, peers: List[Peer]):
-        """Precomputes and caches query and state vectors for a list of peers."""
-        print("Pre-computing and caching peer embeddings for performance...")
-        self._cached_peers = peers
-        for p in tqdm(peers, desc="Caching Peer Embeddings"):
-            if p.user_id not in self._peer_embedding_cache:
-                Q_j = self._encode_query(p.profile_text, "")
-                H_j = self._encode_state(p.profile_text)
-                self._peer_embedding_cache[p.user_id] = {"Q_j": Q_j, "H_j": H_j}
-
     def get_cached_peers(self) -> List[Peer]:
-        """Returns the list of peers whose embeddings have been cached."""
-        return self._cached_peers
+        """Returns empty list for compatibility with existing code."""
+        return []
 
     def _encode_query(self, profile_text: str, task: str) -> np.ndarray:
         """
         Encode query by separately encoding profile and task, then fusing them.
         This prevents long profiles from diluting short task queries.
         """
-        # If no task is provided, use profile only (for peer encoding)
+        # If no task is provided, use profile only
         if not task or task.strip() == "":
             text = profile_text or ""
             vec = np.array(self.embed.embed_text(text), dtype=np.float64)
@@ -79,153 +67,159 @@ class RetrievePipeline:
         fused_vec = task_weight * task_vec + profile_weight * profile_vec
         return l2_normalize(fused_vec)
 
-    def _encode_state(self, profile_text: str) -> np.ndarray:
-        text = profile_text or ""
-        vec = np.array(self.embed.embed_text(text), dtype=np.float64)
-        return l2_normalize(vec)
-
-    def _stack_memory_matrix(self, memories: List[MemoryItem]) -> np.ndarray:
-        if not memories:
-            return np.zeros((0, self.cfg.embed_dimension), dtype=np.float64)
-        mat = np.array([m.E_m for m in memories], dtype=np.float64)
-        # assume already normalized; re-normalize just in case
-        mat = mat / (np.linalg.norm(mat, axis=1, keepdims=True) + 1e-12)
-        return mat
-
-    def step_a(self, Q_i: np.ndarray, E: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        scores = E @ Q_i  # (M,)
-        alpha = softmax(scores)
-        Z_B = (alpha[:, None] * E).sum(axis=0)
-        return alpha, Z_B
-
-    def step_b(self, Q_i: np.ndarray, peers: List[Peer], E: np.ndarray) -> np.ndarray:
-        if not peers:
-            M = E.shape[0]
-            return np.ones(M) / max(1, M)
-        alphas = []
-        H_list = []
-
-        # Check if all required peer embeddings are in the cache
-        can_use_cache = all(p.user_id in self._peer_embedding_cache for p in peers)
-
-        for p in peers:
-            if can_use_cache:
-                peer_embeds = self._peer_embedding_cache[p.user_id]
-                Q_j = peer_embeds["Q_j"]
-                H_j = peer_embeds["H_j"]
-            else:
-                # Fallback for safety, though with pre-computation it shouldn't be hit in eval
-                Q_j = self._encode_query(p.profile_text, "")
-                H_j = self._encode_state(p.profile_text)
-
-            alpha_j, _ = self.step_a(Q_j, E)
-            alphas.append(alpha_j)
-            H_list.append(H_j)
-
-        alphas_mat = np.stack(alphas, axis=0)  # (J, M)
-        H = np.stack(H_list, axis=0)  # (J, d)
-        # trust weights beta over peers
-        beta_scores = H @ Q_i  # (J,)
-        beta = softmax(beta_scores)
-        p_peer = (beta[:, None] * alphas_mat).sum(axis=0)
-        return p_peer
-
-    def step_c(
-        self, alpha_i: np.ndarray, p_peer: np.ndarray
-    ) -> Tuple[np.ndarray, float]:
-        M = alpha_i.shape[0]
-        H_self = entropy(alpha_i)
-        H_peer = entropy(p_peer)
-        H_max = np.log(max(M, 1))
-        c_self = 1.0 - (H_self / (H_max + 1e-12))
-        c_peer = 1.0 - (H_peer / (H_max + 1e-12))
-        delta_c = c_self - c_peer
-        s = 1.0 - js_divergence(alpha_i, p_peer) / (np.log(2) + 1e-12)
-        z = self.cfg.kappa * (1.0 - s) * delta_c + self.cfg.bias_b
-        lambda_i = 1.0 / (1.0 + np.exp(-z))
-        tilde_alpha = lambda_i * alpha_i + (1.0 - lambda_i) * p_peer
-        return tilde_alpha, float(lambda_i)
-
-    def _pre_filter_memories_by_focus(
+    def _hybrid_retrieve_with_focus_and_cot(
         self, memories: List[MemoryItem], query_vec: np.ndarray, top_k: int
     ) -> List[MemoryItem]:
-        """Pre-filters memories based on cosine similarity between query and memory's focus_query."""
+        """
+        综合检索：基于 focus_query 和 COT 的加权相似度召回候选记忆
+        
+        Args:
+            memories: 所有记忆项
+            query_vec: 查询向量
+            top_k: 返回的top-K数量
+            
+        Returns:
+            召回的记忆列表（按综合分数排序）
+        """
         if not memories or top_k <= 0:
             return []
 
+        # 1. 计算 focus_query 相似度
         focus_queries = [m.focus_query for m in memories]
         focus_vectors = np.array(self.embed.embed_many(focus_queries), dtype=np.float64)
-        focus_vectors = l2_normalize(focus_vectors)
+        # L2 normalize each row (each vector)
+        focus_vectors = focus_vectors / (np.linalg.norm(focus_vectors, axis=1, keepdims=True) + 1e-12)
+        focus_similarities = focus_vectors @ query_vec
 
-        similarities = focus_vectors @ query_vec
+        # 2. 计算 COT 相似度
+        cot_texts = [m.cot_text for m in memories]
+        cot_vectors = np.array(self.embed.embed_many(cot_texts), dtype=np.float64)
+        # L2 normalize each row (each vector)
+        cot_vectors = cot_vectors / (np.linalg.norm(cot_vectors, axis=1, keepdims=True) + 1e-12)
+        cot_similarities = cot_vectors @ query_vec
 
-        # Get top_k indices, ensuring we don't go out of bounds
+        # 3. 加权融合
+        # 归一化权重
+        focus_weight = self.cfg.focus_query_weight
+        cot_weight = self.cfg.cot_weight
+        total_weight = focus_weight + cot_weight
+        if total_weight > 0:
+            focus_weight = focus_weight / total_weight
+            cot_weight = cot_weight / total_weight
+        
+        hybrid_scores = focus_weight * focus_similarities + cot_weight * cot_similarities
+
+        # 4. 排序并取 top-K
         num_memories = len(memories)
         k = min(top_k, num_memories)
+        top_k_indices = np.argsort(-hybrid_scores)[:k]
 
-        # Get the indices of the top k similarities
-        top_k_indices = np.argsort(-similarities)[:k]
+        # 5. 日志输出前10个
+        print("\n" + "="*80)
+        print("📊 [粗召回阶段] 综合检索结果 (focus_query + COT)")
+        print(f"   总记忆数: {num_memories}, 召回数: {k}")
+        print(f"   权重配置: focus_query={focus_weight:.2f}, COT={cot_weight:.2f}")
+        print("-"*80)
+        display_count = min(10, len(top_k_indices))
+        for rank, idx in enumerate(top_k_indices[:display_count], start=1):
+            memory = memories[idx]
+            hybrid_score = float(hybrid_scores[idx])
+            focus_score = float(focus_similarities[idx])
+            cot_score = float(cot_similarities[idx])
+            focus_preview = memory.focus_query[:50].replace("\n", " ") if memory.focus_query else "无"
+            print(f"  {rank:2d}. ID: {memory.id:20s} | 综合分数: {hybrid_score:.4f}")
+            print(f"       └─ Focus分数: {focus_score:.4f} | COT分数: {cot_score:.4f}")
+            print(f"       └─ Focus预览: {focus_preview}")
+        print("="*80 + "\n")
 
         return [memories[i] for i in top_k_indices]
 
     def retrieve(
         self, user: UserProfile, task: str, peers: List[Peer], top_k: int = 5
     ) -> Dict[str, any]:
+        """
+        两步检索策略：
+        1. 综合检索：基于 focus_query + COT 的加权相似度召回候选
+        2. LLM判断：使用LLM过滤出真正有用的记忆
+        
+        Args:
+            user: 用户档案
+            task: 当前任务/查询
+            peers: 同伴列表（为了接口兼容保留，但不使用）
+            top_k: 最终返回的记忆数量
+            
+        Returns:
+            包含检索结果的字典，格式保持兼容
+        """
         memories = self.store.list_memories()
         Q_i = self._encode_query(user.profile_text, task)
 
-        # Step 1: Pre-filter to get top 10 candidates based on focus_query
-        pre_filter_k = 20
-        candidate_memories = self._pre_filter_memories_by_focus(
-            memories, Q_i, pre_filter_k
+        # ============ 第一步：综合检索（focus_query + COT） ============
+        recall_k = self.cfg.hybrid_recall_k
+        candidate_memories = self._hybrid_retrieve_with_focus_and_cot(
+            memories, Q_i, recall_k
         )
 
-        # If no candidates, return empty
+        # 如果没有候选，直接返回空
         if not candidate_memories:
             return {"items": [], "lambda": 0.0, "alpha": [], "peer": []}
 
-        # Step 2: Run the attention mechanism on the pre-filtered candidates
-        E = self._stack_memory_matrix(candidate_memories)
-        if E.shape[0] == 0:
-            return {"items": [], "lambda": 0.0, "alpha": [], "peer": []}
-
-        alpha_i, _ = self.step_a(Q_i, E)
-        p_peer = self.step_b(Q_i, peers, E)
-        tilde_alpha, lambda_i = self.step_c(alpha_i, p_peer)
-
-        order = np.argsort(-tilde_alpha)
-
-        # Final top_k selection from the candidates
-        indices = order[:top_k]
-
-        # LLM-based usefulness filtering (batch): collect all focus_queries, call LLM once, filter indices
-        topk_focus_queries = [candidate_memories[idx].focus_query for idx in indices]
-        # Log the memory IDs that are being sent to LLM usefulness judgement
+        # ============ 第二步：LLM 有用性判断 ============
+        # 从候选中选择前 top_k*2 个送入LLM判断（避免过滤后数量不足）
+        llm_input_k = min(len(candidate_memories), top_k * 2)
+        llm_candidates = candidate_memories[:llm_input_k]
+        
+        # 提取 focus_queries 用于LLM判断
+        focus_queries_for_llm = [m.focus_query for m in llm_candidates]
+        
+        # 日志：送入LLM的记忆ID
+        print("\n" + "="*80)
+        print(f"🤖 [LLM判断阶段] 送入 {llm_input_k} 个候选记忆进行有用性判断")
+        print("-"*80)
         try:
-            ids_for_llm = [candidate_memories[idx].id for idx in indices]
-            print("\n🔎 [retrieve] 送入 LLM 有用性判断的记忆ID: " + ", ".join(ids_for_llm))
+            ids_for_llm = [m.id for m in llm_candidates]
+            for i, mem_id in enumerate(ids_for_llm, 1):
+                print(f"  {i:2d}. ID: {mem_id:20s}")
         except Exception:
             pass
-        useful_flags = self.llm.are_focus_queries_useful(task, topk_focus_queries)
+        print("="*80 + "\n")
+        
+        # 调用LLM批量判断
+        useful_flags = self.llm.are_focus_queries_useful(task, focus_queries_for_llm)
 
-        filtered_indices: List[int] = []
-        for i, idx in enumerate(indices):
-            if i < len(useful_flags) and useful_flags[i]:
-                filtered_indices.append(idx)
+        # 过滤出有用的记忆
+        filtered_memories = []
+        for i, (mem, is_useful) in enumerate(zip(llm_candidates, useful_flags)):
+            if is_useful:
+                filtered_memories.append(mem)
 
+        # 日志：LLM判断结果
+        print("\n" + "="*80)
+        print(f"✅ [LLM判断结果] {len(filtered_memories)}/{llm_input_k} 个记忆被判定为有用")
+        print("-"*80)
+        for i, mem in enumerate(filtered_memories[:10], 1):
+            focus_preview = mem.focus_query[:50].replace("\n", " ") if mem.focus_query else "无"
+            print(f"  {i:2d}. ID: {mem.id:20s}")
+            print(f"       └─ Focus: {focus_preview}")
+        print("="*80 + "\n")
+
+        # 返回最终的 top_k 结果
+        final_k = min(top_k, len(filtered_memories))
         results = [
             {
                 "rank": int(r + 1),
-                "score": float(tilde_alpha[idx]),
-                "memory": candidate_memories[idx].to_dict(),
+                "score": 1.0 - (r / max(len(filtered_memories), 1)),  # 简单的递减分数
+                "memory": filtered_memories[r].to_dict(),
             }
-            for r, idx in enumerate(filtered_indices)
+            for r in range(final_k)
         ]
+        
+        # 返回格式保持兼容，但lambda/alpha/peer在新策略中不使用
         return {
             "items": results,
-            "lambda": lambda_i,
-            "alpha": alpha_i.tolist(),
-            "peer": p_peer.tolist(),
+            "lambda": 0.0,  # 新策略不使用lambda
+            "alpha": [],    # 新策略不使用alpha
+            "peer": [],     # 新策略不使用peer
         }
 
     def build_prompt_blocks(

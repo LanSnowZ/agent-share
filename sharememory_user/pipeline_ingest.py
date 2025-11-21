@@ -34,11 +34,8 @@ class IngestPipeline:
 
         # Build focus_query strictly from user questions within this dialog segment
         user_query_only = self.qc.extract_query_from_user_questions(raw_text)
-        # Run QC on full text for include/scores/cot/kg
-        qc = self.qc.evaluate(raw_text, source_user_id)
-        # Override qc.query to ensure focus_query derives from user-only questions
-        if user_query_only:
-            qc.query = user_query_only
+        # Run QC on full text for include/scores/cot/kg, passing focus_query so COT can align with it
+        qc = self.qc.evaluate(raw_text, source_user_id, focus_query=user_query_only)
         if not qc.include:
             return None
 
@@ -86,18 +83,20 @@ class IngestPipeline:
                         else raw_text
                     )
 
-                    # Merge CoT and KG（作为附加信息保留）
-                    merged_cot = self.qc.merge_cot(target_memory.cot_text, qc.cot)
-                    merged_kg = self.qc.merge_kg(
-                        target_memory.meta.get("kg", []), qc.kg
-                    )
-
-                    # Merge focus_query (综合新旧两个 focus_query)
+                    # Step 1: Merge focus_query first (综合新旧两个 focus_query)
                     old_query = target_memory.focus_query or target_memory.meta.get(
                         "focus_query", ""
                     )
                     new_query = qc.query
                     merged_query = self.qc.merge_query(old_query, new_query)
+
+                    # Step 2: Merge CoT and KG with awareness of merged focus_query
+                    merged_cot = self.qc.merge_cot(
+                        target_memory.cot_text, qc.cot, merged_query
+                    )
+                    merged_kg = self.qc.merge_kg(
+                        target_memory.meta.get("kg", []), qc.kg
+                    )
 
                     # Update target memory
                     target_memory.raw_text = merged_raw

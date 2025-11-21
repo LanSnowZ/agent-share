@@ -7,7 +7,7 @@ class CachePathSettings(BaseSettings):
 
     USER_FILE_PATH: str = "user.json"
     MEMORYOS_DATA_DIR: str = "eval/memoryos_data"
-    MEMORY_FILE_PATH: str = "data/memory.json"
+    MEMORY_FILE_PATH: str = "../sharememory_user/data/memory.json"
 
     class Config:
         env_file = ".env"

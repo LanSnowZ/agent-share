@@ -13,7 +13,7 @@ class Config:
     embed_use_hf: bool = os.environ.get("SMU_EMBED_USE_HF", "1") == "1"
     embed_model_name: str = os.environ.get(
         "SMU_EMBED_MODEL",
-        "/root/autodl-tmp/embedding_cache/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+        "/root/autodl-tmp/models/embedding_models/bge-m3",
     )
     embed_dimension: int = int(os.environ.get("SMU_EMBED_DIM", "1024"))
     embed_use_fp16: bool = os.environ.get("SMU_EMBED_USE_FP16", "1") == "1"
@@ -30,10 +30,10 @@ class Config:
     )
     llm_model_name: str = os.environ.get("SMU_LLM_MODEL", "gpt-5-chat-latest")
 
-    # Retrieval
-    kappa: float = float(os.environ.get("SMU_KAPPA", "6.0"))
-    bias_b: float = float(os.environ.get("SMU_BIAS_B", "0.0"))
-    epsilon: float = float(os.environ.get("SMU_EPS", "1e-9"))
+    # Retrieval - Hybrid strategy (focus_query + COT)
+    hybrid_recall_k: int = int(os.environ.get("SMU_HYBRID_RECALL_K", "30"))  # 第一步召回的候选数量
+    focus_query_weight: float = float(os.environ.get("SMU_FOCUS_QUERY_WEIGHT", "0.6"))  # focus_query权重
+    cot_weight: float = float(os.environ.get("SMU_COT_WEIGHT", "0.4"))  # COT权重
 
     # Merge
     merge_top_k: int = 3
