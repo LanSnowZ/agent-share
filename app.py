@@ -1328,7 +1328,7 @@ def get_baseline_answer_prompt_no_profile(
     创建不使用任何记忆和个人信息的基线提示词
     只包含对话上下文（如果有的话）
     """
-    prefix = "请你使用搜索工具和网页访问工具帮我回答: " if mcp_enabled else ""
+    prefix = "请你使用搜索工具帮我回答: " if mcp_enabled else ""
     context_section = ""
     if conversation_context:
         context_section = f"""
@@ -1420,7 +1420,7 @@ def get_rag_answer_prompt_with_context(
     """
     创建包含对话上下文的RAG提示词
     """
-    mcp_prefix = "请你使用搜索工具和网页访问工具帮我回答: " if mcp_enabled else ""
+    mcp_prefix = "请你使用搜索工具帮我回答: " if mcp_enabled else ""
     context_section = ""
     if conversation_context:
         context_section = f"""
@@ -1480,7 +1480,7 @@ def get_fusion_rag_prompt_with_context(
 ---
 
 """
-    mcp_prefix = "请你使用搜索工具和网页访问工具帮我回答: " if mcp_enabled else ""
+    mcp_prefix = "请你使用搜索工具帮我回答: " if mcp_enabled else ""
         
     return f"""你是一个有用的AI助手。你的任务是基于两个记忆源提供的上下文来回答用户的问题。
 上下文来自共享知识库和你对过去对话的个人记忆。
