@@ -641,7 +641,7 @@ def ensure_user_memoryos(
                 retrieval_queue_capacity=3,
                 mid_term_heat_threshold=8,
                 mid_term_similarity_threshold=0.7,
-                embedding_model_name="/root/autodl-tmp/embedding_cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+                embedding_model_name="/root/autodl-tmp/models/embedding_models/all-MiniLM-L6-v2",
             )
 
             memoryos_instances[user_id] = memoryos_instance
